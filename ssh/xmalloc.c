@@ -13,11 +13,15 @@
  * called by a name other than "ssh" or "Secure Shell".
  */
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+#include "openbsd-compat.h"
 
 #include "xmalloc.h"
 #include "log.h"
@@ -42,8 +46,8 @@ xcalloc(size_t nmemb, size_t size)
 
 	if (size == 0 || nmemb == 0)
 		fatal("xcalloc: zero size");
-	if (SIZE_T_MAX / nmemb < size)
-		fatal("xcalloc: nmemb * size > SIZE_T_MAX");
+	if (SIZE_MAX / nmemb < size)
+		fatal("xcalloc: nmemb * size > SIZE_MAX");
 	ptr = calloc(nmemb, size);
 	if (ptr == NULL)
 		fatal("xcalloc: out of memory (allocating %lu bytes)",
@@ -59,8 +63,8 @@ xrealloc(void *ptr, size_t nmemb, size_t size)
 
 	if (new_size == 0)
 		fatal("xrealloc: zero size");
-	if (SIZE_T_MAX / nmemb < size)
-		fatal("xrealloc: nmemb * size > SIZE_T_MAX");
+	if (SIZE_MAX / nmemb < size)
+		fatal("xrealloc: nmemb * size > SIZE_MAX");
 	if (ptr == NULL)
 		new_ptr = malloc(new_size);
 	else

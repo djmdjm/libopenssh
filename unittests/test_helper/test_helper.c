@@ -32,6 +32,8 @@
 
 #include <vis.h>
 
+#include "openbsd-compat.h"
+
 #include "test_helper.h"
 
 #define TEST_CHECK_INT(r, pred) do {		\

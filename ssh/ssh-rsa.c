@@ -22,6 +22,7 @@
 
 #include <string.h>
 
+#include "openbsd-compat.h"
 #include "sshbuf.h"
 #include "compat.h"
 #include "err.h"

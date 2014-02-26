@@ -50,6 +50,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "openbsd-compat.h"
+
 #include "xmalloc.h"
 #include "ssh.h"
 #include "rsa.h"

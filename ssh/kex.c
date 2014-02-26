@@ -32,6 +32,8 @@
 
 #include <openssl/crypto.h>
 
+#include "openbsd-compat.h"
+
 #include "ssh2.h"
 #include "packet.h"
 #include "compat.h"

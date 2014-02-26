@@ -15,6 +15,7 @@
 #include <sys/param.h>
 #include <errno.h>
 #include <pwd.h>
+#include <grp.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdarg.h>

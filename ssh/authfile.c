@@ -53,6 +53,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "openbsd-compat.h"
+
 #include "cipher.h"
 #include "key.h"
 #include "ssh.h"

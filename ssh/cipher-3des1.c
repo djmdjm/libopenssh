@@ -24,8 +24,10 @@
  */
 
 #include <sys/types.h>
-#include <string.h>
 #include <openssl/evp.h>
+
+#include <stdlib.h>
+#include <string.h>
 
 #include "err.h"
 

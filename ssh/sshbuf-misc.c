@@ -23,10 +23,10 @@
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
-#include <resolv.h>
 #include <ctype.h>
 
 #include "err.h"
+#include "base64.h"
 #define SSHBUF_INTERNAL
 #include "sshbuf.h"
 

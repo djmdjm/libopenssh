@@ -275,8 +275,8 @@ u_int	sshbuf_refcount(const struct sshbuf *buf);
 # define SSHBUF_SIZE_INC		256		/* Preferred increment length */
 # define SSHBUF_PACK_MIN		8192		/* Minimim packable offset */
 
-/* # define SSHBUF_ABORT abort */
-/* # define SSHBUF_DEBUG */
+/* #define SSHBUF_ABORT abort */
+/* #define SSHBUF_DEBUG */
 
 # ifndef SSHBUF_ABORT
 #  define SSHBUF_ABORT()

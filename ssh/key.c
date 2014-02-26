@@ -34,6 +34,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "openbsd-compat.h"
+
 #include "ssh2.h"
 #include "err.h"
 #include "misc.h"

@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "openbsd-compat.h"
+
 #include "err.h"
 #define SSHBUF_INTERNAL
 #include "sshbuf.h"

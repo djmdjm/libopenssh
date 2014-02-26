@@ -34,6 +34,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "openbsd-compat.h"
+
 #include "progressmeter.h"
 #include "atomicio.h"
 #include "misc.h"

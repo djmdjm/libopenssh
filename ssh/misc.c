@@ -28,6 +28,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/param.h>
+#include <sys/time.h>
 
 #include <net/if.h>
 #include <netinet/in.h>
@@ -36,16 +37,20 @@
 #include <netinet/tcp.h>
 
 #include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
 #include <paths.h>
 #include <pwd.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
+
+#include "openbsd-compat.h"
 
 #include "xmalloc.h"
 #include "misc.h"
@@ -203,9 +208,11 @@ pwcopy(struct passwd *pw)
 	copy->pw_gecos = xstrdup(pw->pw_gecos);
 	copy->pw_uid = pw->pw_uid;
 	copy->pw_gid = pw->pw_gid;
+#ifndef __linux__
 	copy->pw_expire = pw->pw_expire;
 	copy->pw_change = pw->pw_change;
 	copy->pw_class = xstrdup(pw->pw_class);
+#endif /* __linux__ */
 	copy->pw_dir = xstrdup(pw->pw_dir);
 	copy->pw_shell = xstrdup(pw->pw_shell);
 	return copy;
@@ -631,6 +638,9 @@ read_keyfile_line(FILE *f, const char *filename, char *buf, size_t bufsz,
 int
 tun_open(u_int tun, int mode)
 {
+#ifdef __linux__
+	return -1;
+#else
 	struct ifreq ifr;
 	char name[100];
 	int i, fd = -1, sock;
@@ -693,6 +703,7 @@ tun_open(u_int tun, int mode)
 	debug("%s: failed to set %s mode %d: %s", __func__, name,
 	    mode, strerror(errno));
 	return (-1);
+#endif /* __linux__ */
 }
 
 void
@@ -1000,7 +1011,7 @@ reallocn(void **ptr, size_t nmemb, size_t size)
 	size_t new_size = nmemb * size;
 
 	if (new_size == 0 ||
-	    SIZE_T_MAX / nmemb < size) {
+	    SIZE_MAX / nmemb < size) {
 		*ptr = NULL;
 		return SSH_ERR_INVALID_ARGUMENT;
 	}

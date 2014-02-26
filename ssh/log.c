@@ -46,6 +46,7 @@
 #include <errno.h>
 #include <vis.h>
 
+#include "xmalloc.h"
 #include "log.h"
 
 static LogLevel log_level = SYSLOG_LEVEL_INFO;
@@ -57,6 +58,9 @@ static log_handler_fn *log_handler;
 static void *log_handler_ctx;
 
 extern char *__progname;
+
+#define LOG_SYSLOG_VIS	(VIS_CSTYLE|VIS_NL|VIS_TAB|VIS_OCTAL)
+#define LOG_STDERR_VIS	(VIS_SAFE|VIS_OCTAL)
 
 /* textual representation of log-facilities/levels */
 
@@ -156,11 +160,13 @@ error(const char *fmt,...)
 void
 sigdie(const char *fmt,...)
 {
+#ifdef DO_LOG_SAFE_IN_SIGHAND
 	va_list args;
 
 	va_start(args, fmt);
 	do_log(SYSLOG_LEVEL_FATAL, fmt, args);
 	va_end(args);
+#endif
 	_exit(1);
 }
 
@@ -228,6 +234,10 @@ debug3(const char *fmt,...)
 void
 log_init(char *av0, LogLevel level, SyslogFacility facility, int on_stderr)
 {
+#if defined(HAVE_OPENLOG_R) && defined(SYSLOG_DATA_INIT)
+	struct syslog_data sdata = SYSLOG_DATA_INIT;
+#endif
+
 	argv0 = av0;
 
 	switch (level) {
@@ -294,6 +304,19 @@ log_init(char *av0, LogLevel level, SyslogFacility facility, int on_stderr)
 		    (int) facility);
 		exit(1);
 	}
+
+	/*
+	 * If an external library (eg libwrap) attempts to use syslog
+	 * immediately after reexec, syslog may be pointing to the wrong
+	 * facility, so we force an open/close of syslog here.
+	 */
+#if defined(HAVE_OPENLOG_R) && defined(SYSLOG_DATA_INIT)
+	openlog_r(argv0 ? argv0 : __progname, LOG_PID, log_facility, &sdata);
+	closelog_r(&sdata);
+#else
+	openlog(argv0 ? argv0 : __progname, LOG_PID, log_facility);
+	closelog();
+#endif
 }
 
 void
@@ -347,7 +370,9 @@ do_log2(LogLevel level, const char *fmt,...)
 void
 do_log(LogLevel level, const char *fmt, va_list args)
 {
+#if defined(HAVE_OPENLOG_R) && defined(SYSLOG_DATA_INIT)
 	struct syslog_data sdata = SYSLOG_DATA_INIT;
+#endif
 	char msgbuf[MSGBUFSIZ];
 	char fmtbuf[MSGBUFSIZ];
 	char *txt = NULL;
@@ -398,7 +423,8 @@ do_log(LogLevel level, const char *fmt, va_list args)
 	} else {
 		vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
 	}
-	strnvis(fmtbuf, msgbuf, sizeof(fmtbuf), VIS_SAFE|VIS_OCTAL);
+	strnvis(fmtbuf, msgbuf, sizeof(fmtbuf),
+	    log_on_stderr ? LOG_STDERR_VIS : LOG_SYSLOG_VIS);
 	if (log_handler != NULL) {
 		/* Avoid recursion */
 		tmp_handler = log_handler;
@@ -409,9 +435,15 @@ do_log(LogLevel level, const char *fmt, va_list args)
 		snprintf(msgbuf, sizeof msgbuf, "%s\r\n", fmtbuf);
 		(void)write(log_stderr_fd, msgbuf, strlen(msgbuf));
 	} else {
+#if defined(HAVE_OPENLOG_R) && defined(SYSLOG_DATA_INIT)
 		openlog_r(argv0 ? argv0 : __progname, LOG_PID, log_facility, &sdata);
 		syslog_r(pri, &sdata, "%.500s", fmtbuf);
 		closelog_r(&sdata);
+#else
+		openlog(argv0 ? argv0 : __progname, LOG_PID, log_facility);
+		syslog(pri, "%.500s", fmtbuf);
+		closelog();
+#endif
 	}
 	errno = saved_errno;
 }

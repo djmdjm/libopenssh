@@ -39,6 +39,7 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <sys/param.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/un.h>
@@ -2215,7 +2216,7 @@ channel_prepare_select(fd_set **readsetp, fd_set **writesetp, int *maxfdp,
 
 	nfdset = howmany(n+1, NFDBITS);
 	/* Explicitly test here, because xrealloc isn't always called */
-	if (nfdset && SIZE_T_MAX / nfdset < sizeof(fd_mask))
+	if (nfdset && SIZE_MAX / nfdset < sizeof(fd_mask))
 		fatal("channel_prepare_select: max_fd (%d) is too large", n);
 	sz = nfdset * sizeof(fd_mask);
 
