@@ -1,8 +1,11 @@
-CFLAGS=-g -O2 -Wall -Wpointer-arith -Wuninitialized -Wsign-compare -Wformat-security -Wno-pointer-sign -Wno-unused-result -fno-strict-aliasing -D_FORTIFY_SOURCE=2 -fno-builtin-memset -fstack-protector-all -Werror -Wno-attributes -std=gnu99 -D_GNU_SOURCE -D_BSD_SOURCE
+CFLAGS=-g -O2 -Wall -Wpointer-arith -Wuninitialized -Wsign-compare -Wformat-security -Wno-pointer-sign -Wno-unused-result -fno-strict-aliasing -D_FORTIFY_SOURCE=2 -fstack-protector-all -Werror -Wno-attributes -std=gnu99 -D_GNU_SOURCE -D_BSD_SOURCE
 
 CPPFLAGS=`pkg-config --cflags libbsd-overlay` -I../../ssh -I../test_helper
-LDFLAGS=-L../test_helper -L../../ssh
+LDFLAGS=-L../test_helper -L../../ssh -g
 LIBS=-lopenssh -lcrypto -lrt -ltest_helper `pkg-config --libs libbsd-overlay`
+
+#CFLAGS+=-fsanitize=undefined -fno-omit-frame-pointer
+#LDFLAGS+=-fsanitize=undefined
 
 all: run_test_sshkey
 
