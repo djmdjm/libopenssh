@@ -1,4 +1,4 @@
-/* $OpenBSD: key.h,v 1.37 2013/05/19 02:42:42 djm Exp $ */
+/* $OpenBSD: key.h,v 1.39 2013/12/06 13:30:08 markus Exp $ */
 
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
@@ -183,5 +183,8 @@ int ssh_ecdsa_verify(const struct sshkey *key,
     const u_char *signature, size_t signaturelen,
     const u_char *data, size_t datalen, u_int compat);
 #endif
+
+int	sshkey_private_serialize(const struct sshkey *key, struct sshbuf *buf);
+int	sshkey_private_deserialize(struct sshbuf *buf,  struct sshkey **keyp);
 
 #endif

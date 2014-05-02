@@ -1,4 +1,4 @@
-/* $OpenBSD: authfd.c,v 1.87 2013/05/17 00:13:13 djm Exp $ */
+/* $OpenBSD: authfd.c,v 1.89 2013/12/06 13:30:08 markus Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -500,63 +500,8 @@ ssh_encode_identity_ssh2(struct sshbuf *b, struct sshkey *key,
 {
 	int r;
 
-	if ((r = sshbuf_put_cstring(b, sshkey_ssh_name(key))) != 0)
-		return r;
-	switch (key->type) {
-	case KEY_RSA:
-		if ((r = sshbuf_put_bignum2(b, key->rsa->n)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->e)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->d)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->iqmp)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->p)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->q)) != 0)
-			return r;
-		break;
-	case KEY_RSA_CERT_V00:
-	case KEY_RSA_CERT:
-		if (key->cert == NULL || sshbuf_len(key->cert->certblob) == 0)
-			return SSH_ERR_INVALID_ARGUMENT;
-		if ((r = sshbuf_put_stringb(b, key->cert->certblob)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->d)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->iqmp)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->p)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->rsa->q)) != 0)
-			return r;
-		break;
-	case KEY_DSA:
-		if ((r = sshbuf_put_bignum2(b, key->dsa->p)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->dsa->q)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->dsa->g)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->dsa->pub_key)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->dsa->priv_key)) != 0)
-			return r;
-		break;
-	case KEY_DSA_CERT_V00:
-	case KEY_DSA_CERT:
-		if (key->cert == NULL || sshbuf_len(key->cert->certblob) == 0)
-			return SSH_ERR_INVALID_ARGUMENT;
-		if ((r = sshbuf_put_stringb(b, key->cert->certblob)) != 0 ||
-		    (r = sshbuf_put_bignum2(b, key->dsa->priv_key)) != 0)
-			return r;
-		break;
-	case KEY_ECDSA:
-		if ((r = sshbuf_put_cstring(b,
-		    sshkey_curve_nid_to_name(key->ecdsa_nid))) != 0 ||
-		    (r = sshbuf_put_eckey(b, key->ecdsa)) != 0 ||
-		    (r = sshbuf_put_bignum2(b,
-		    EC_KEY_get0_private_key(key->ecdsa))) != 0)
-			return r;
-		break;
-	case KEY_ECDSA_CERT:
-		if (key->cert == NULL || sshbuf_len(key->cert->certblob) == 0)
-			return SSH_ERR_INVALID_ARGUMENT;
-		if ((r = sshbuf_put_stringb(b, key->cert->certblob)) != 0 ||
-		    (r = sshbuf_put_bignum2(b,
-		    EC_KEY_get0_private_key(key->ecdsa))) != 0)
-			return r;
-		break;
-	}
-	if ((r = sshbuf_put_cstring(b, comment)) != 0)
+	if ((r = sshkey_private_serialize(key, b)) != 0 ||
+	    (r = sshbuf_put_cstring(b, comment)) != 0)
 		return r;
 	return 0;
 }

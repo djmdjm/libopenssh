@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-agent.c,v 1.177 2013/07/20 01:50:20 djm Exp $ */
+/* $OpenBSD: ssh-agent.c,v 1.178 2013/12/06 13:30:08 markus Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -491,6 +491,10 @@ reaper(void)
 		return (deadline - now);
 }
 
+/*
+ * XXX this and the corresponding serialisation function probably belongs
+ * in key.c
+ */
 static int
 agent_decode_rsa1(struct sshbuf *m, struct sshkey **kp)
 {
@@ -528,247 +532,14 @@ agent_decode_rsa1(struct sshbuf *m, struct sshkey **kp)
 	return r;
 }
 
-static int
-agent_decode_rsa(struct sshbuf *m, const char *typename,
-    int type, struct sshkey **kp)
-{
-	struct sshkey *k = NULL;
-	int r = SSH_ERR_INTERNAL_ERROR;
-
-	*kp = NULL;
-	if ((k = sshkey_new_private(type)) == NULL)
-		return SSH_ERR_ALLOC_FAIL;
-
-	if ((r = sshbuf_get_bignum2(m, k->rsa->n)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->e)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->d)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->iqmp)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->p)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->q)) != 0)
-		goto out;
-
-	/* Generate additional parameters */
-	if ((r = rsa_generate_additional_parameters(k->rsa)) != 0)
-		goto out;
-	if (RSA_blinding_on(k->rsa, NULL) != 1) {
-		r = SSH_ERR_LIBCRYPTO_ERROR;
-		goto out;
-	}
-
-	r = 0; /* success */
- out:
-	if (r == 0)
-		*kp = k;
-	else
-		sshkey_free(k);
-	return r;
-}
-
-static int
-agent_decode_rsa_cert(struct sshbuf *m, const char *typename,
-    int type, struct sshkey **kp)
-{
-	struct sshkey *k = NULL;
-	int r = SSH_ERR_INTERNAL_ERROR;
-	u_char *blob = NULL;
-	size_t len;
-
-	*kp = NULL;
-
-	if ((r = sshbuf_get_string(m, &blob, &len)) != 0 ||
-	    (r = sshkey_from_blob(blob, len, &k)) != 0 ||
-	    (r = sshkey_add_private(k)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->d) != 0) ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->iqmp) != 0) ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->p) != 0) ||
-	    (r = sshbuf_get_bignum2(m, k->rsa->q) != 0))
-		goto out;
-
-	/* Generate additional parameters */
-	if ((r = rsa_generate_additional_parameters(k->rsa)) != 0)
-		goto out;
-	if (RSA_blinding_on(k->rsa, NULL) != 1) {
-		r = SSH_ERR_LIBCRYPTO_ERROR;
-		goto out;
-	}
-
-	r = 0; /* success */
- out:
-	if (blob) {
-		bzero(blob, len);
-		free(blob);
-	}
-	if (r == 0)
-		*kp = k;
-	else
-		sshkey_free(k);
-	return r;
-}
-
-static int
-agent_decode_dsa(struct sshbuf *m, const char *typename,
-    int type, struct sshkey **kp)
-{
-	struct sshkey *k = NULL;
-	int r = SSH_ERR_INTERNAL_ERROR;
-
-	*kp = NULL;
-	if ((k = sshkey_new_private(type)) == NULL)
-		return SSH_ERR_ALLOC_FAIL;
-
-	if ((r = sshbuf_get_bignum2(m, k->dsa->p)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->dsa->q)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->dsa->g)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->dsa->pub_key)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->dsa->priv_key)) != 0)
-		goto out;
-
-	r = 0; /* success */
- out:
-	if (r == 0)
-		*kp = k;
-	else
-		sshkey_free(k);
-	return r;
-}
-
-static int
-agent_decode_dsa_cert(struct sshbuf *m, const char *typename,
-    int type, struct sshkey **kp)
-{
-	struct sshkey *k = NULL;
-	int r = SSH_ERR_INTERNAL_ERROR;
-	u_char *blob = NULL;
-	size_t len;
-
-	*kp = NULL;
-
-	if ((r = sshbuf_get_string(m, &blob, &len)) != 0 ||
-	    (r = sshkey_from_blob(blob, len, &k)) != 0 ||
-	    (r = sshkey_add_private(k)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, k->dsa->priv_key)) != 0)
-		goto out;
-
-	r = 0; /* success */
- out:
-	if (blob) {
-		bzero(blob, len);
-		free(blob);
-	}
-	if (r == 0)
-		*kp = k;
-	else
-		sshkey_free(k);
-	return r;
-}
-
-static int
-agent_decode_ecdsa(struct sshbuf *m, const char *typename,
-    int type, struct sshkey **kp)
-{
-	struct sshkey *k = NULL;
-	int r = SSH_ERR_INTERNAL_ERROR;
-	char *curve = NULL;
-	BIGNUM *exponent = NULL;
-
-	*kp = NULL;
-	if ((k = sshkey_new_private(type)) == NULL)
-		return SSH_ERR_ALLOC_FAIL;
-	if ((k->ecdsa_nid = sshkey_ecdsa_nid_from_name(typename)) == -1) {
-		r = SSH_ERR_INVALID_ARGUMENT;
-		goto out;
-	}
-	if ((r = sshbuf_get_cstring(m, &curve, NULL)) != 0)
-		goto out;
-	if (k->ecdsa_nid != sshkey_curve_name_to_nid(curve)) {
-		r = SSH_ERR_EC_CURVE_MISMATCH;
-		goto out;
-	}
-	if ((k->ecdsa = EC_KEY_new_by_curve_name(k->ecdsa_nid)) == NULL ||
-	    (exponent = BN_new()) == NULL) {
-		r = SSH_ERR_LIBCRYPTO_ERROR;
-		goto out;
-	}
-	if ((r = sshbuf_get_eckey(m, k->ecdsa)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, exponent)))
-		goto out;
-	if (EC_KEY_set_private_key(k->ecdsa, exponent) != 1) {
-		r = SSH_ERR_LIBCRYPTO_ERROR;
-		goto out;
-	}
-	if ((r = sshkey_ec_validate_public(EC_KEY_get0_group(k->ecdsa),
-	    EC_KEY_get0_public_key(k->ecdsa)) != 0) ||
-	    (r = sshkey_ec_validate_private(k->ecdsa)) != 0)
-		goto out;
-
-	r = 0; /* success */
- out:
-	if (curve) {
-		bzero(curve, strlen(curve));
-		free(curve);
-	}
-	if (exponent)
-		BN_clear_free(exponent);
-	if (r == 0)
-		*kp = k;
-	else
-		sshkey_free(k);
-	return r;
-}
-
-static int
-agent_decode_ecdsa_cert(struct sshbuf *m, const char *typename,
-    int type, struct sshkey **kp)
-{
-	struct sshkey *k = NULL;
-	int r = SSH_ERR_INTERNAL_ERROR;
-	u_char *blob = NULL;
-	size_t len;
-	BIGNUM *exponent = NULL;
-
-	*kp = NULL;
-
-	if ((exponent = BN_new()) == NULL)
-		return SSH_ERR_ALLOC_FAIL;
-
-	if ((r = sshbuf_get_string(m, &blob, &len)) != 0 ||
-	    (r = sshkey_from_blob(blob, len, &k)) != 0 ||
-	    (r = sshkey_add_private(k)) != 0 ||
-	    (r = sshbuf_get_bignum2(m, exponent)) != 0)
-		goto out;
-
-	if (EC_KEY_set_private_key(k->ecdsa, exponent) != 1) {
-		r = SSH_ERR_LIBCRYPTO_ERROR;
-		goto out;
-	}
-	if ((r = sshkey_ec_validate_public(EC_KEY_get0_group(k->ecdsa),
-	    EC_KEY_get0_public_key(k->ecdsa)) != 0) ||
-	    (r = sshkey_ec_validate_private(k->ecdsa)) != 0)
-		goto out;
-
-	r = 0; /* success */
- out:
-	if (exponent)
-		BN_clear_free(exponent);
-	if (blob) {
-		bzero(blob, len);
-		free(blob);
-	}
-	if (r == 0)
-		*kp = k;
-	else
-		sshkey_free(k);
-	return r;
-}
-
 static void
 process_add_identity(SocketEntry *e, int version)
 {
 	Idtab *tab = idtab_lookup(version);
 	Identity *id;
-	int type, success = 0, confirm = 0;
+	int success = 0, confirm = 0;
 	u_int seconds;
-	char *type_name = NULL, *comment = NULL;
+	char *comment = NULL;
 	time_t death = 0;
 	struct sshkey *k = NULL;
 	u_char ctype;
@@ -779,40 +550,9 @@ process_add_identity(SocketEntry *e, int version)
 		r = agent_decode_rsa1(e->request, &k);
 		break;
 	case 2:
-		if ((r = sshbuf_get_cstring(e->request, &type_name, NULL)) != 0)
-			break;
-		type = sshkey_type_from_name(type_name);
-		switch (type) {
-		case KEY_DSA:
-			r = agent_decode_dsa(e->request, type_name, type, &k);
-			break;
-		case KEY_DSA_CERT_V00:
-		case KEY_DSA_CERT:
-			r = agent_decode_dsa_cert(e->request, type_name,
-			    type, &k);
-			break;
-		case KEY_ECDSA:
-			r = agent_decode_ecdsa(e->request, type_name, type, &k);
-			break;
-		case KEY_ECDSA_CERT:
-			r = agent_decode_ecdsa_cert(e->request, type_name,
-			    type, &k);
-			break;
-		case KEY_RSA:
-			r = agent_decode_rsa(e->request, type_name, type, &k);
-			break;
-		case KEY_RSA_CERT_V00:
-		case KEY_RSA_CERT:
-			r = agent_decode_rsa_cert(e->request, type_name,
-			    type, &k);
-			break;
-		default:
-			r = SSH_ERR_KEY_TYPE_UNKNOWN;
-			break;
-		}
+		r = sshkey_private_deserialize(e->request, &k);
 		break;
 	}
-	free(type_name);
 	if (r != 0 || k == NULL ||
 	    (r = sshbuf_get_cstring(e->request, &comment, NULL)) != 0) {
 		error("%s: decode private key: %s", __func__, ssh_err(r));
