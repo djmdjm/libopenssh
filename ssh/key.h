@@ -126,6 +126,7 @@ int		 sshkey_generate(int type, u_int bits, struct sshkey **keyp);
 int		 sshkey_from_private(const struct sshkey *, struct sshkey **);
 int	 sshkey_type_from_name(const char *);
 int	 sshkey_is_cert(const struct sshkey *);
+int	 sshkey_type_is_cert(int);
 int	 sshkey_type_plain(int);
 int	 sshkey_to_certified(struct sshkey *, int);
 int	 sshkey_drop_cert(struct sshkey *);

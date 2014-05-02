@@ -1,4 +1,4 @@
-/* $OpenBSD: key.c,v 1.104 2013/05/19 02:42:42 djm Exp $ */
+/* $OpenBSD: key.c,v 1.105 2013/10/29 09:42:11 djm Exp $ */
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
  * Copyright (c) 2008 Alexander von Gernler.  All rights reserved.
@@ -41,9 +41,13 @@
 #define SSHKEY_INTERNAL
 #include "key.h"
 
+static int sshkey_from_blob_internal(const u_char *blob, size_t blen,
+    struct sshkey **keyp, int allow_cert);
+
+/* Supported key types */
 struct keytype {
-	char *name;
-	char *shortname;
+	const char *name;
+	const char *shortname;
 	int type;
 	int nid;
 	int cert;
@@ -92,6 +96,18 @@ sshkey_ssh_name_from_type_nid(int type, int nid)
 			return kt->name;
 	}
 	return "ssh-unknown";
+}
+
+int
+sshkey_type_is_cert(int type)
+{
+	const struct keytype *kt;
+
+	for (kt = keytypes; kt->type != -1; kt++) {
+		if (kt->type == type)
+			return kt->cert;
+	}
+	return 0;
 }
 
 const char *
@@ -1617,7 +1633,8 @@ cert_parse(struct sshbuf *b, struct sshkey *key, const u_char *blob,
 	}
 	sshbuf_reset(tmp);
 
-	if (sshkey_from_blob(sig_key, sklen, &key->cert->signature_key) != 0) {
+	if (sshkey_from_blob_internal(sig_key, sklen,
+	    &key->cert->signature_key, 0) != 0) {
 		ret = SSH_ERR_KEY_CERT_INVALID_SIGN_KEY;
 		goto out;
 	}
@@ -1643,8 +1660,9 @@ cert_parse(struct sshbuf *b, struct sshkey *key, const u_char *blob,
 	return ret;
 }
 
-int
-sshkey_from_blob(const u_char *blob, size_t blen, struct sshkey **keyp)
+static int
+sshkey_from_blob_internal(const u_char *blob, size_t blen,
+    struct sshkey **keyp, int allow_cert)
 {
 	struct sshbuf *b;
 	int type, nid = -1, ret = SSH_ERR_INTERNAL_ERROR;
@@ -1656,6 +1674,7 @@ sshkey_from_blob(const u_char *blob, size_t blen, struct sshkey **keyp)
 	dump_base64(stderr, blob, blen);
 #endif
 	*keyp = NULL;
+	/* XXX use sshbuf_from() */
 	if ((b = sshbuf_new()) == NULL)
 		return SSH_ERR_ALLOC_FAIL;
 	if ((ret = sshbuf_put(b, blob, blen)) != 0)
@@ -1668,7 +1687,10 @@ sshkey_from_blob(const u_char *blob, size_t blen, struct sshkey **keyp)
 	type = sshkey_type_from_name(ktype);
 	if (sshkey_type_plain(type) == KEY_ECDSA)
 		nid = sshkey_ecdsa_nid_from_name(ktype);
-
+	if (!allow_cert && sshkey_type_is_cert(type)) {
+		ret = SSH_ERR_KEY_CERT_INVALID_SIGN_KEY;
+		goto out;
+	}
 	switch (type) {
 	case KEY_RSA_CERT:
 		if (sshbuf_get_string_direct(b, NULL, NULL) != 0) {
@@ -1782,6 +1804,12 @@ sshkey_from_blob(const u_char *blob, size_t blen, struct sshkey **keyp)
 		EC_POINT_free(q);
 	sshbuf_free(b);
 	return ret;
+}
+
+int
+sshkey_from_blob(const u_char *blob, size_t blen, struct sshkey **keyp)
+{
+	return sshkey_from_blob_internal(blob, blen, keyp, 1);
 }
 
 int
@@ -1915,16 +1943,7 @@ sshkey_is_cert(const struct sshkey *k)
 {
 	if (k == NULL)
 		return 0;
-	switch (k->type) {
-	case KEY_RSA_CERT_V00:
-	case KEY_DSA_CERT_V00:
-	case KEY_RSA_CERT:
-	case KEY_DSA_CERT:
-	case KEY_ECDSA_CERT:
-		return 1;
-	default:
-		return 0;
-	}
+	return sshkey_type_is_cert(k->type);
 }
 
 /* Return the cert-less equivalent to a certified key type */
