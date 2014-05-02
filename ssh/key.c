@@ -619,6 +619,10 @@ to_blob(const struct sshkey *key, u_char **blobp, size_t *lenp, int force_plain)
 	size_t len;
 	struct sshbuf *b = NULL;
 
+	if (lenp != NULL)
+		*lenp = 0;
+	if (blobp != NULL)
+		*blobp = NULL;
 	if ((b = sshbuf_new()) == NULL)
 		return SSH_ERR_ALLOC_FAIL;
 	if ((ret = to_blob_buf(key, b, force_plain)) != 0)
@@ -1212,6 +1216,7 @@ rsa_generate_private_key(u_int bits, RSA **rsap)
 	    bits < SSH_RSA_MINIMUM_MODULUS_SIZE ||
 	    bits > SSHBUF_MAX_BIGNUM * 8)
 		return SSH_ERR_INVALID_ARGUMENT;
+	*rsap = NULL;
 	if ((private = RSA_new()) == NULL || (f4 = BN_new()) == NULL) {
 		ret = SSH_ERR_ALLOC_FAIL;
 		goto out;
@@ -1244,6 +1249,7 @@ dsa_generate_private_key(u_int bits, DSA **dsap)
 		ret = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
+	*dsap = NULL;
 	if (!DSA_generate_parameters_ex(private, bits, NULL, 0, NULL,
 	    NULL, NULL) || !DSA_generate_key(private)) {
 		DSA_free(private);
@@ -1331,6 +1337,7 @@ ecdsa_generate_private_key(u_int bits, int *nid, EC_KEY **ecdsap)
 	if (nid == NULL || ecdsap == NULL ||
 	    (*nid = sshkey_ecdsa_bits_to_nid(bits)) == -1)
 		return SSH_ERR_INVALID_ARGUMENT;
+	*ecdsap = NULL;
 	if ((private = EC_KEY_new_by_curve_name(*nid)) == NULL) {
 		ret = SSH_ERR_ALLOC_FAIL;
 		goto out;
@@ -1448,6 +1455,9 @@ sshkey_from_private(const struct sshkey *k, struct sshkey **pkp)
 {
 	struct sshkey *n = NULL;
 	int ret = SSH_ERR_INTERNAL_ERROR;
+
+	if (pkp != NULL)
+		*pkp = NULL;
 
 	switch (k->type) {
 	case KEY_DSA:
@@ -1817,6 +1827,10 @@ sshkey_sign(const struct sshkey *key,
     u_char **sigp, size_t *lenp,
     const u_char *data, size_t datalen, u_int compat)
 {
+	if (sigp != NULL)
+		*sigp = NULL;
+	if (lenp != NULL)
+		*lenp = 0;
 	if (datalen > SSH_KEY_MAX_SIGN_DATA_SIZE)
 		return SSH_ERR_INVALID_ARGUMENT;
 	switch (key->type) {
@@ -1872,6 +1886,9 @@ sshkey_demote(const struct sshkey *k, struct sshkey **dkp)
 {
 	struct sshkey *pk;
 	int ret = SSH_ERR_INTERNAL_ERROR;
+
+	if (dkp != NULL)
+		*dkp = NULL;
 
 	if ((pk = calloc(1, sizeof(*pk))) == NULL)
 		return SSH_ERR_ALLOC_FAIL;
@@ -2147,6 +2164,9 @@ sshkey_cert_check_authority(const struct sshkey *k,
 {
 	u_int i, principal_matches;
 	time_t now = time(NULL);
+
+	if (reason != NULL)
+		*reason = NULL;
 
 	if (want_host) {
 		if (k->cert->type != SSH2_CERT_TYPE_HOST) {
