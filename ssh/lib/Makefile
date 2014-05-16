@@ -43,8 +43,7 @@ install:
 .include "${.CURDIR}/../Makefile.inc"
 .include <bsd.own.mk>
 
-# XXX leave on while refactoring to ensure we don't break it.
-KERBEROS5=yes
+KERBEROS5=no
 
 .if (${KERBEROS5:L} == "yes")
 CFLAGS+= -DKRB5 -I${DESTDIR}/usr/include/kerberosV
