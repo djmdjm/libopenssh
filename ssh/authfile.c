@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.c,v 1.97 2013/05/17 00:13:13 djm Exp $ */
+/* $OpenBSD: authfile.c,v 1.99 2013/12/06 13:34:54 markus Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -13,7 +13,7 @@
  * called by a name other than "ssh" or "Secure Shell".
  *
  *
- * Copyright (c) 2000 Markus Friedl.  All rights reserved.
+ * Copyright (c) 2000, 2013 Markus Friedl.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -52,6 +52,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <util.h>
 
 #include "cipher.h"
 #include "key.h"
@@ -64,11 +65,389 @@
 #include "sshbuf.h"
 #include "err.h"
 
+/* openssh private key file format */
+#define MARK_BEGIN		"-----BEGIN OPENSSH PRIVATE KEY-----\n"
+#define MARK_END		"-----END OPENSSH PRIVATE KEY-----\n"
+#define MARK_BEGIN_LEN		(sizeof(MARK_BEGIN) - 1)
+#define MARK_END_LEN		(sizeof(MARK_END) - 1)
+#define KDFNAME			"bcrypt"
+#define AUTH_MAGIC		"openssh-key-v1"
+#define SALT_LEN		16
+#define DEFAULT_CIPHERNAME	"aes256-cbc"
+#define	DEFAULT_ROUNDS		16
+
 #define MAX_KEY_FILE_SIZE	(1024 * 1024)
 
 /* Version identification string for SSH v1 identity files. */
 static const char authfile_id_string[] =
     "SSH PRIVATE KEY FILE FORMAT 1.1\n";
+
+static int
+sshkey_private_to_blob2(const struct sshkey *prv, struct sshbuf *blob,
+    const char *passphrase, const char *comment, const char *ciphername,
+    int rounds)
+{
+	u_char *cp, *b64 = NULL, *key = NULL, *pubkeyblob = NULL;
+	u_char salt[SALT_LEN];
+	size_t i, pubkeylen, keylen, ivlen, blocksize, authlen;
+	u_int check;
+	int r = SSH_ERR_INTERNAL_ERROR;
+	struct sshcipher_ctx ciphercontext;
+	const struct sshcipher *cipher;
+	const char *kdfname = KDFNAME;
+	struct sshbuf *encoded = NULL, *encrypted = NULL, *kdf = NULL;
+
+	memset(&ciphercontext, 0, sizeof(ciphercontext));
+
+	if (rounds <= 0)
+		rounds = DEFAULT_ROUNDS;
+	if (passphrase == NULL || !strlen(passphrase)) {
+		ciphername = "none";
+		kdfname = "none";
+	} else if (ciphername == NULL)
+		ciphername = DEFAULT_CIPHERNAME;
+	else if (cipher_number(ciphername) != SSH_CIPHER_SSH2) {
+		r = SSH_ERR_INVALID_ARGUMENT;
+		goto out;
+	}
+	if ((cipher = cipher_by_name(ciphername)) == NULL) {
+		r = SSH_ERR_INTERNAL_ERROR;
+		goto out;
+	}
+
+	if ((kdf = sshbuf_new()) == NULL ||
+	    (encoded = sshbuf_new()) == NULL ||
+	    (encrypted = sshbuf_new()) == NULL) {
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+	blocksize = cipher_blocksize(cipher);
+	keylen = cipher_keylen(cipher);
+	ivlen = cipher_ivlen(cipher);
+	authlen = cipher_authlen(cipher);
+	if ((key = calloc(1, keylen + ivlen)) == NULL) {
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+	if (strcmp(kdfname, "bcrypt") == 0) {
+		arc4random_buf(salt, SALT_LEN);
+		if (bcrypt_pbkdf(passphrase, strlen(passphrase),
+		    salt, SALT_LEN, key, keylen + ivlen, rounds) < 0) {
+			r = SSH_ERR_INVALID_ARGUMENT;
+			goto out;
+		}
+		if ((r = sshbuf_put_string(kdf, salt, SALT_LEN)) != 0 ||
+		    (r = sshbuf_put_u32(kdf, rounds)) != 0)
+			goto out;
+	} else if (strcmp(kdfname, "none") != 0) {
+		/* Unsupported KDF type */
+		r = SSH_ERR_KEY_UNKNOWN_CIPHER;
+		goto out;
+	}
+	if ((r = cipher_init(&ciphercontext, cipher, key, keylen,
+	    key + keylen, ivlen, 1)) != 0)
+		goto out;
+
+	if ((r = sshbuf_put(encoded, AUTH_MAGIC, sizeof(AUTH_MAGIC))) != 0 ||
+	    (r = sshbuf_put_cstring(encoded, ciphername)) != 0 ||
+	    (r = sshbuf_put_cstring(encoded, kdfname)) != 0 ||
+	    (r = sshbuf_put_stringb(encoded, kdf)) != 0 ||
+	    (r = sshbuf_put_u32(encoded, 1)) != 0 ||	/* number of keys */
+	    (r = sshkey_to_blob(prv, &pubkeyblob, &pubkeylen)) != 0 ||
+	    (r = sshbuf_put_string(encoded, pubkeyblob, pubkeylen)) != 0)
+		goto out;
+
+	/* set up the buffer that will be encrypted */
+
+	/* Random check bytes */
+	check = arc4random();
+	if ((r = sshbuf_put_u32(encrypted, check)) != 0 ||
+	    (r = sshbuf_put_u32(encrypted, check)) != 0)
+		goto out;
+
+	/* append private key and comment*/
+	if ((r = sshkey_private_serialize(prv, encrypted)) != 0 ||
+	    (r = sshbuf_put_cstring(encrypted, comment)) != 0)
+		goto out;
+
+	/* padding */
+	i = 0;
+	while (sshbuf_len(encrypted) % blocksize) {
+		if ((r = sshbuf_put_u8(encrypted, ++i & 0xff)) != 0)
+			goto out;
+	}
+
+	/* length in destination buffer */
+	if ((r = sshbuf_put_u32(encoded, sshbuf_len(encrypted))) != 0)
+		goto out;
+
+	/* encrypt */
+	if ((r = sshbuf_reserve(encoded,
+	    sshbuf_len(encrypted) + authlen, &cp)) != 0)
+		goto out;
+	if ((r = cipher_crypt(&ciphercontext, cp,
+	    sshbuf_ptr(encrypted), sshbuf_len(encrypted), 0, authlen)) != 0)
+		goto out;
+
+	/* uuencode */
+	if ((b64 = sshbuf_dtob64(encoded)) == NULL) {
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+
+	sshbuf_reset(blob);
+	if ((r = sshbuf_put(blob, MARK_BEGIN, MARK_BEGIN_LEN)) != 0)
+		goto out;
+	for (i = 0; i < strlen(b64); i++) {
+		if ((r = sshbuf_put_u8(blob, b64[i])) != 0)
+			goto out;
+		/* insert line breaks */
+		if (i % 70 == 69 && (r = sshbuf_put_u8(blob, '\n')) != 0)
+			goto out;
+	}
+	if (i % 70 == 69 && (r = sshbuf_put_u8(blob, '\n')) != 0)
+		goto out;
+	if ((r = sshbuf_put(blob, MARK_END, MARK_END_LEN)) != 0)
+		goto out;
+
+	/* success */
+	r = 0;
+
+ out:
+	pubkeylen = keylen = ivlen = blocksize = authlen = 0;
+	sshbuf_free(kdf);
+	sshbuf_free(encoded);
+	sshbuf_free(encrypted);
+	cipher_cleanup(&ciphercontext);
+	explicit_bzero(salt, sizeof(salt));
+	if (key != NULL) {
+		explicit_bzero(key, keylen + ivlen);
+		free(key);
+	}
+	if (pubkeyblob != NULL) {
+		explicit_bzero(pubkeyblob, pubkeylen);
+		free(pubkeyblob);
+	}
+	if (b64 != NULL) {
+		explicit_bzero(b64, strlen(b64));
+		free(b64);
+	}
+	return r;
+}
+
+static int
+sshkey_parse_private2(struct sshbuf *blob, int type, const char *passphrase,
+    struct sshkey **keyp, char **commentp)
+{
+	u_char *key = NULL, *salt = NULL, *dp, pad, last;
+	const u_char *cp;
+	char *comment = NULL, *ciphername = NULL, *kdfname = NULL;
+	size_t i, keylen = 0, ivlen = 0, slen = 0;
+	size_t encoded_len;
+	u_int blocksize, rounds, nkeys, encrypted_len, check1, check2;
+	struct sshcipher_ctx ciphercontext;
+	const struct sshcipher *cipher = NULL;
+	struct sshkey *k = NULL;
+	int r = SSH_ERR_INTERNAL_ERROR;
+
+	struct sshbuf *encoded = NULL, *decoded = NULL;
+	struct sshbuf *kdf = NULL, *decrypted = NULL;
+
+	memset(&ciphercontext, 0, sizeof(ciphercontext));
+	if (keyp != NULL)
+		*keyp = NULL;
+	if (commentp != NULL)
+		*commentp = NULL;
+
+	if ((encoded = sshbuf_new()) == NULL ||
+	    (decoded = sshbuf_new()) == NULL ||
+	    (kdf = sshbuf_new()) == NULL ||
+	    (decrypted = sshbuf_new()) == NULL) {
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+
+	/* check preamble */
+	cp = sshbuf_ptr(blob);
+	encoded_len = sshbuf_len(blob);
+	if (encoded_len < (MARK_BEGIN_LEN + MARK_END_LEN) ||
+	    memcmp(cp, MARK_BEGIN, MARK_BEGIN_LEN) != 0) {
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+	cp += MARK_BEGIN_LEN;
+	encoded_len -= MARK_BEGIN_LEN;
+
+	/* Look for end marker, removing whitespace as we go */
+	while (encoded_len > 0) {
+		if (*cp != '\n' && *cp != '\r') {
+			if ((r = sshbuf_put_u8(encoded, *cp)) != 0)
+				goto out;
+		}
+		last = *cp;
+		encoded_len--;
+		cp++;
+		if (last == '\n') {
+			if (encoded_len >= MARK_END_LEN &&
+			    memcmp(cp, MARK_END, MARK_END_LEN) == 0) {
+				/* \0 terminate */
+				if ((r = sshbuf_put_u8(encoded, 0)) != 0)
+					goto out;
+				break;
+			}
+		}
+	}
+	if (encoded_len == 0) {
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+
+	/* decode base64 */
+	if ((r = sshbuf_b64tod(decoded, sshbuf_ptr(encoded))) != 0)
+		goto out;
+
+	/* check magic */
+	if (sshbuf_len(decoded) < sizeof(AUTH_MAGIC) ||
+	    memcmp(sshbuf_ptr(decoded), AUTH_MAGIC, sizeof(AUTH_MAGIC))) {
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+	/* parse public portion of key */
+	if ((r = sshbuf_consume(decoded, sizeof(AUTH_MAGIC))) != 0 ||
+	    (r = sshbuf_get_cstring(decoded, &ciphername, NULL)) != 0 ||
+	    (r = sshbuf_get_cstring(decoded, &kdfname, NULL)) != 0 ||
+	    (r = sshbuf_froms(decoded, &kdf)) != 0 ||
+	    (r = sshbuf_get_u32(decoded, &nkeys)) != 0 ||
+	    (r = sshbuf_skip_string(decoded)) != 0 || /* pubkey */
+	    (r = sshbuf_get_u32(decoded, &encrypted_len)) != 0)
+		goto out;
+
+	if ((cipher = cipher_by_name(ciphername)) == NULL) {
+		r = SSH_ERR_KEY_UNKNOWN_CIPHER;
+		goto out;
+	}
+	if ((passphrase == NULL || strlen(passphrase) == 0) &&
+	    strcmp(ciphername, "none") != 0) {
+		/* passphrase required */
+		r = SSH_ERR_KEY_WRONG_PASSPHRASE;
+		goto out;
+	}
+	if (strcmp(kdfname, "none") != 0 && strcmp(kdfname, "bcrypt") != 0) {
+		r = SSH_ERR_KEY_UNKNOWN_CIPHER;
+		goto out;
+	}
+	if (!strcmp(kdfname, "none") && strcmp(ciphername, "none") != 0) {
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+	if (nkeys != 1) {
+		/* XXX only one key supported */
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+
+	/* check size of encrypted key blob */
+	blocksize = cipher_blocksize(cipher);
+	if (encrypted_len < blocksize || (encrypted_len % blocksize) != 0) {
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+
+	/* setup key */
+	keylen = cipher_keylen(cipher);
+	ivlen = cipher_ivlen(cipher);
+	if ((key = calloc(1, keylen + ivlen)) == NULL) {
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
+	}
+	if (strcmp(kdfname, "bcrypt") == 0) {
+		if ((r = sshbuf_get_string(kdf, &salt, &slen)) != 0 ||
+		    (r = sshbuf_get_u32(kdf, &rounds)) != 0)
+			goto out;
+		if (bcrypt_pbkdf(passphrase, strlen(passphrase), salt, slen,
+		    key, keylen + ivlen, rounds) < 0) {
+			r = SSH_ERR_INVALID_FORMAT;
+			goto out;
+		}
+	}
+
+	/* decrypt private portion of key */
+	if ((r = sshbuf_reserve(decrypted, encrypted_len, &dp)) != 0 ||
+	    (r = cipher_init(&ciphercontext, cipher, key, keylen,
+	    key + keylen, ivlen, 0)) != 0)
+		goto out;
+	if ((r = cipher_crypt(&ciphercontext, dp, sshbuf_ptr(decoded),
+	    sshbuf_len(decoded), 0, cipher_authlen(cipher))) != 0) {
+		/* an integrity error here indicates an incorrect passphrase */
+		if (r == SSH_ERR_MAC_INVALID)
+			r = SSH_ERR_KEY_WRONG_PASSPHRASE;
+		goto out;
+	}
+	if ((r = sshbuf_consume(decoded, encrypted_len)) != 0)
+		goto out;
+	/* there should be no trailing data */
+	if (sshbuf_len(decoded) != 0) {
+		r = SSH_ERR_INVALID_FORMAT;
+		goto out;
+	}
+
+	/* check check bytes */
+	if ((r = sshbuf_get_u32(decrypted, &check1)) != 0 ||
+	    (r = sshbuf_get_u32(decrypted, &check2)) != 0)
+		goto out;
+	if (check1 != check2) {
+		r = SSH_ERR_KEY_WRONG_PASSPHRASE;
+		goto out;
+	}
+
+	/* Load the private key and comment */
+	if ((r = sshkey_private_deserialize(decrypted, &k)) != 0 ||
+	    (r = sshbuf_get_cstring(decrypted, &comment, NULL)) != 0)
+		goto out;
+
+	/* Check deterministic padding */
+	i = 0;
+	while (sshbuf_len(decrypted)) {
+		if ((r = sshbuf_get_u8(decrypted, &pad)) != 0)
+			goto out;
+		if (pad != (++i & 0xff)) {
+			r = SSH_ERR_INVALID_FORMAT;
+			goto out;
+		}
+	}
+
+	/* XXX decode pubkey and check against private */
+
+	/* success */
+	r = 0;
+	if (keyp != NULL) {
+		*keyp = k;
+		k = NULL;
+	}
+	if (commentp != NULL) {
+		*commentp = comment;
+		comment = NULL;
+	}
+ out:
+	pad = 0;
+	cipher_cleanup(&ciphercontext);
+	free(ciphername);
+	free(kdfname);
+	free(comment);
+	if (salt != NULL) {
+		explicit_bzero(salt, slen);
+		free(salt);
+	}
+	if (key != NULL) {
+		explicit_bzero(key, keylen + ivlen);
+		free(key);
+	}
+	sshbuf_free(encoded);
+	sshbuf_free(decoded);
+	sshbuf_free(kdf);
+	sshbuf_free(decrypted);
+	return r;
+}
 
 /*
  * Serialises the authentication (private) key to a blob, encrypting it with
@@ -243,7 +622,8 @@ sshkey_save_private_blob(struct sshbuf *keybuf, const char *filename)
 /* Serialise "key" to buffer "blob" */
 static int
 sshkey_private_to_blob(struct sshkey *key, struct sshbuf *blob,
-    const char *passphrase, const char *comment)
+    const char *passphrase, const char *comment,
+    int force_new_format, const char *new_format_cipher, int new_format_rounds)
 {
 	switch (key->type) {
 	case KEY_RSA1:
@@ -252,6 +632,10 @@ sshkey_private_to_blob(struct sshkey *key, struct sshbuf *blob,
 	case KEY_DSA:
 	case KEY_ECDSA:
 	case KEY_RSA:
+		if (force_new_format) {
+			return sshkey_private_to_blob2(key, blob, passphrase,
+			    comment, new_format_cipher, new_format_rounds);
+		}
 		return sshkey_private_pem_to_blob(key, blob,
 		    passphrase, comment);
 	default:
@@ -261,15 +645,16 @@ sshkey_private_to_blob(struct sshkey *key, struct sshbuf *blob,
 
 int
 sshkey_save_private(struct sshkey *key, const char *filename,
-    const char *passphrase, const char *comment)
+    const char *passphrase, const char *comment,
+    int force_new_format, const char *new_format_cipher, int new_format_rounds)
 {
 	struct sshbuf *keyblob = NULL;
 	int r;
 
 	if ((keyblob = sshbuf_new()) == NULL)
 		return SSH_ERR_ALLOC_FAIL;
-	if ((r = sshkey_private_to_blob(key, keyblob, passphrase,
-	    comment)) != 0)
+	if ((r = sshkey_private_to_blob(key, keyblob, passphrase, comment,
+	    force_new_format, new_format_cipher, new_format_rounds)) != 0)
 		goto out;
 	if ((r = sshkey_save_private_blob(keyblob, filename)) != 0)
 		goto out;
@@ -683,6 +1068,8 @@ static int
 sshkey_parse_private_type(struct sshbuf *blob, int type, const char *passphrase,
     struct sshkey **keyp, char **commentp)
 {
+	int r;
+
 	*keyp = NULL;
 	if (commentp != NULL)
 		*commentp = NULL;
@@ -695,6 +1082,9 @@ sshkey_parse_private_type(struct sshbuf *blob, int type, const char *passphrase,
 	case KEY_ECDSA:
 	case KEY_RSA:
 	case KEY_UNSPEC:
+		if ((r = sshkey_parse_private2(blob, type, passphrase, keyp,
+		    commentp)) == 0)
+			return 0;
 		return sshkey_parse_private_pem(blob, type, passphrase,
 		    keyp, commentp);
 	default:
@@ -919,7 +1309,7 @@ sshkey_load_cert(const char *filename, struct sshkey **keyp)
 {
 	struct sshkey *pub = NULL;
 	char *file = NULL;
-	int r;
+	int r = SSH_ERR_INTERNAL_ERROR;
 
 	*keyp = NULL;
 
@@ -927,7 +1317,6 @@ sshkey_load_cert(const char *filename, struct sshkey **keyp)
 		return SSH_ERR_ALLOC_FAIL;
 
 	if ((pub = sshkey_new(KEY_UNSPEC)) == NULL) {
-		r = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
 	if ((r = sshkey_try_load_public(pub, file, NULL)) != 0)

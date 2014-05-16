@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.h,v 1.16 2011/05/04 21:15:29 djm Exp $ */
+/* $OpenBSD: authfile.h,v 1.17 2013/12/06 13:34:54 markus Exp $ */
 
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
@@ -23,7 +23,7 @@ struct sshbuf;
 struct sshkey;
 
 int sshkey_save_private(struct sshkey *, const char *,
-    const char *, const char *);
+    const char *, const char *, int, const char *, int);
 int sshkey_load_file(int, const char *, struct sshbuf *);
 int sshkey_load_cert(const char *, struct sshkey **);
 int sshkey_load_public(const char *, struct sshkey **, char **);

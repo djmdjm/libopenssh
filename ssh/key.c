@@ -1,4 +1,4 @@
-/* $OpenBSD: key.c,v 1.107 2013/12/06 13:30:08 markus Exp $ */
+/* $OpenBSD: key.c,v 1.108 2013/12/06 13:34:54 markus Exp $ */
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
  * Copyright (c) 2008 Alexander von Gernler.  All rights reserved.
@@ -1900,6 +1900,7 @@ sshkey_demote(const struct sshkey *k, struct sshkey **dkp)
 	pk->ecdsa = NULL;
 	pk->rsa = NULL;
 
+	/* XXX this substantially duplicates to_blob(); refactor */
 	switch (k->type) {
 	case KEY_RSA_CERT_V00:
 	case KEY_RSA_CERT:
