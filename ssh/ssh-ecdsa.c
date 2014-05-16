@@ -52,6 +52,11 @@ ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	struct sshbuf *b = NULL, *bb = NULL;
 	int ret = SSH_ERR_INTERNAL_ERROR;
 
+	if (lenp != NULL)
+		*lenp = 0;
+	if (sigp != NULL)
+		*sigp = NULL;
+
 	if (key == NULL || key->ecdsa == NULL ||
 	    (key->type != KEY_ECDSA && key->type != KEY_ECDSA_CERT))
 		return SSH_ERR_INVALID_ARGUMENT;
@@ -61,10 +66,10 @@ ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	if (EVP_DigestInit(&md, evp_md) != 1 ||
 	    EVP_DigestUpdate(&md, data, datalen) != 1 ||
 	    EVP_DigestFinal(&md, digest, &dlen) != 1) {
-		bzero(&md, sizeof(md));
+		explicit_bzero(&md, sizeof(md));
 		return SSH_ERR_LIBCRYPTO_ERROR;
 	}
-	bzero(&md, sizeof(md));
+	explicit_bzero(&md, sizeof(md));
 
 	if ((sig = ECDSA_do_sign(digest, dlen, key->ecdsa)) == NULL) {
 		ret = SSH_ERR_LIBCRYPTO_ERROR;
@@ -82,8 +87,6 @@ ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	    (ret = sshbuf_put_stringb(b, bb)) != 0)
 		goto out;
 	len = sshbuf_len(b);
-	if (lenp != NULL)
-		*lenp = len;
 	if (sigp != NULL) {
 		if ((*sigp = malloc(len)) == NULL) {
 			ret = SSH_ERR_ALLOC_FAIL;
@@ -91,9 +94,11 @@ ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 		}
 		memcpy(*sigp, sshbuf_ptr(b), len);
 	}
+	if (lenp != NULL)
+		*lenp = len;
 	ret = 0;
  out:
-	memset(digest, 'd', sizeof(digest));
+	explicit_bzero(digest, sizeof(digest));
 	if (b != NULL)
 		sshbuf_free(b);
 	if (bb != NULL)
@@ -178,7 +183,7 @@ ssh_ecdsa_verify(const struct sshkey *key,
 	}
 
  out:
-	memset(digest, 'd', sizeof(digest));
+	explicit_bzero(digest, sizeof(digest));
 	if (sigbuf != NULL)
 		sshbuf_free(sigbuf);
 	if (b != NULL)

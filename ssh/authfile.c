@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.c,v 1.99 2013/12/06 13:34:54 markus Exp $ */
+/* $OpenBSD: authfile.c,v 1.104 2014/03/12 04:51:12 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -45,6 +45,8 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+
+#include "crypto_api.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -498,7 +500,7 @@ sshkey_private_rsa1_to_blob(struct sshkey *key, struct sshbuf *blob,
 		goto out;
 
 	/* Pad the part to be encrypted to a size that is a multiple of 8. */
-	bzero(buf, 8);
+	explicit_bzero(buf, 8);
 	if ((r = sshbuf_put(buffer, buf, 8 - (sshbuf_len(buffer) % 8))) != 0)
 		goto out;
 
@@ -541,8 +543,8 @@ sshkey_private_rsa1_to_blob(struct sshkey *key, struct sshbuf *blob,
 	r = sshbuf_putb(blob, encrypted);
 
  out:
-	bzero(&ciphercontext, sizeof(ciphercontext));
-	bzero(buf, sizeof(buf));
+	explicit_bzero(&ciphercontext, sizeof(ciphercontext));
+	explicit_bzero(buf, sizeof(buf));
 	if (buffer != NULL)
 		sshbuf_free(buffer);
 	if (encrypted != NULL)
@@ -638,6 +640,9 @@ sshkey_private_to_blob(struct sshkey *key, struct sshbuf *blob,
 		}
 		return sshkey_private_pem_to_blob(key, blob,
 		    passphrase, comment);
+	case KEY_ED25519:
+		return sshkey_private_to_blob2(key, blob, passphrase,
+		    comment, new_format_cipher, new_format_rounds);
 	default:
 		return SSH_ERR_KEY_TYPE_UNKNOWN;
 	}
@@ -762,7 +767,7 @@ sshkey_load_file(int fd, const char *filename, struct sshbuf *blob)
 	r = 0;
 
  out:
-	bzero(buf, sizeof(buf));
+	explicit_bzero(buf, sizeof(buf));
 	if (r != 0)
 		sshbuf_reset(blob);
 	return r;
@@ -904,7 +909,7 @@ sshkey_parse_private_rsa1(struct sshbuf *blob, const char *passphrase,
 		comment = NULL;
 	}
  out:
-	bzero(&ciphercontext, sizeof(ciphercontext));
+	explicit_bzero(&ciphercontext, sizeof(ciphercontext));
 	if (comment != NULL)
 		free(comment);
 	if (prv != NULL)
@@ -1081,6 +1086,11 @@ sshkey_parse_private_type(struct sshbuf *blob, int type, const char *passphrase,
 	case KEY_DSA:
 	case KEY_ECDSA:
 	case KEY_RSA:
+		return sshkey_parse_private_pem(blob, type, passphrase,
+		    keyp, commentp);
+	case KEY_ED25519:
+		return sshkey_parse_private2(blob, type, passphrase,
+		    keyp, commentp);
 	case KEY_UNSPEC:
 		if ((r = sshkey_parse_private2(blob, type, passphrase, keyp,
 		    commentp)) == 0)

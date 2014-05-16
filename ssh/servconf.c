@@ -164,6 +164,8 @@ fill_default_server_options(ServerOptions *options)
 			    _PATH_HOST_DSA_KEY_FILE;
 			options->host_key_files[options->num_host_key_files++] =
 			    _PATH_HOST_ECDSA_KEY_FILE;
+			options->host_key_files[options->num_host_key_files++] =
+			    _PATH_HOST_ED25519_KEY_FILE;
 		}
 	}
 	/* No certificates by default */

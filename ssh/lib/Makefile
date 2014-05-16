@@ -1,4 +1,4 @@
-#	$OpenBSD: Makefile,v 1.67 2013/01/17 23:00:01 djm Exp $
+#	$OpenBSD: Makefile,v 1.70 2013/12/06 13:39:49 markus Exp $
 
 .PATH:		${.CURDIR}/..
 
@@ -12,12 +12,15 @@ SRCS=	authfd.c authfile.c canohost.c \
 	ssh-dss.c ssh-rsa.c ssh-ecdsa.c dh.c kexdh.c kexgex.c kexecdh.c \
 	kexdhc.c kexgexc.c kexecdhc.c msg.c progressmeter.c dns.c \
 	monitor_fdpass.c umac.c addrmatch.c schnorr.c jpake.c ssh-pkcs11.c \
-	krl.c \
+	krl.c ssh-ed25519.c \
 	sshbuf-getput-basic.c \
 	sshbuf-getput-crypto.c \
 	sshbuf-misc.c \
 	sshbuf.c \
 	err.c
+
+# ed25519, from supercop
+SRCS+=	sc25519.c ge25519.c fe25519.c ed25519.c verify.c hash.c blocks.c
 
 SRCS+=	kexdhs.c kexgexs.c kexecdhs.c
 SRCS+=	ssh_api.c

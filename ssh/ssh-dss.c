@@ -52,6 +52,11 @@ ssh_dss_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	struct sshbuf *b = NULL;
 	int ret = SSH_ERR_INVALID_ARGUMENT;
 
+	if (lenp != NULL)
+		*lenp = 0;
+	if (sigp != NULL)
+		*sigp = NULL;
+
 	if (key == NULL || key->dsa == NULL || (key->type != KEY_DSA &&
 	    key->type != KEY_DSA_CERT && key->type != KEY_DSA_CERT_V00))
 		return SSH_ERR_INVALID_ARGUMENT;
@@ -73,13 +78,11 @@ ssh_dss_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 		ret = SSH_ERR_INTERNAL_ERROR;
 		goto out;
 	}
-	bzero(sigblob, SIGBLOB_LEN);
+	explicit_bzero(sigblob, SIGBLOB_LEN);
 	BN_bn2bin(sig->r, sigblob + SIGBLOB_LEN - INTBLOB_LEN - rlen);
 	BN_bn2bin(sig->s, sigblob + SIGBLOB_LEN - slen);
 
 	if (compat & SSH_BUG_SIGBLOB) {
-		if (lenp != NULL)
-			*lenp = SIGBLOB_LEN;
 		if (sigp != NULL) {
 			if ((*sigp = malloc(SIGBLOB_LEN)) == NULL) {
 				ret = SSH_ERR_ALLOC_FAIL;
@@ -87,6 +90,8 @@ ssh_dss_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 			}
 			memcpy(*sigp, sigblob, SIGBLOB_LEN);
 		}
+		if (lenp != NULL)
+			*lenp = SIGBLOB_LEN;
 		ret = 0;
 	} else {
 		/* ietf-drafts */
@@ -98,8 +103,6 @@ ssh_dss_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 		    (ret = sshbuf_put_string(b, sigblob, SIGBLOB_LEN)) != 0)
 			goto out;
 		len = sshbuf_len(b);
-		if (lenp != NULL)
-			*lenp = len;
 		if (sigp != NULL) {
 			if ((*sigp = malloc(len)) == NULL) {
 				ret = SSH_ERR_ALLOC_FAIL;
@@ -107,11 +110,13 @@ ssh_dss_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 			}
 			memcpy(*sigp, sshbuf_ptr(b), len);
 		}
+		if (lenp != NULL)
+			*lenp = len;
 		ret = 0;
 	}
  out:
-	bzero(&md, sizeof(md));
-	bzero(digest, sizeof(digest));
+	explicit_bzero(&md, sizeof(md));
+	explicit_bzero(digest, sizeof(digest));
 	if (sig != NULL)
 		DSA_SIG_free(sig);
 	if (b != NULL)
@@ -202,8 +207,8 @@ ssh_dss_verify(const struct sshkey *key,
 	}
 
  out:
-	bzero(digest, sizeof(digest));
-	bzero(&md, sizeof(md));
+	explicit_bzero(digest, sizeof(digest));
+	explicit_bzero(&md, sizeof(md));
 	if (sig != NULL)
 		DSA_SIG_free(sig);
 	if (b != NULL)
@@ -211,7 +216,7 @@ ssh_dss_verify(const struct sshkey *key,
 	if (ktype != NULL)
 		free(ktype);
 	if (sigblob != NULL) {
-		memset(sigblob, 0, len);
+		explicit_bzero(sigblob, len);
 		free(sigblob);
 	}
 	return ret;

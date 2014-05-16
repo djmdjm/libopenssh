@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-agent.c,v 1.179 2013/12/06 13:34:54 markus Exp $ */
+/* $OpenBSD: ssh-agent.c,v 1.180 2013/12/06 13:39:49 markus Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -518,6 +518,7 @@ agent_decode_rsa1(struct sshbuf *m, struct sshkey **kp)
 	/* Generate additional parameters */
 	if ((r = rsa_generate_additional_parameters(k->rsa)) != 0)
 		goto out;
+	/* enable blinding */
 	if (RSA_blinding_on(k->rsa, NULL) != 1) {
 		r = SSH_ERR_LIBCRYPTO_ERROR;
 		goto out;

@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh.c,v 1.391 2013/10/25 23:04:51 djm Exp $ */
+/* $OpenBSD: ssh.c,v 1.396 2013/12/06 13:39:49 markus Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -520,7 +520,11 @@ main(int ac, char **av)
 			else if (strcasecmp(optarg, "kex") == 0)
 				cp = kex_alg_list();
 			else if (strcasecmp(optarg, "key") == 0)
-				cp = sshkey_alg_list();
+				cp = key_alg_list(0, 0);
+			else if (strcmp(optarg, "key-cert") == 0)
+				cp = key_alg_list(1, 0);
+			else if (strcmp(optarg, "key-plain") == 0)
+				cp = key_alg_list(0, 1);
 			if (cp == NULL)
 				fatal("Unsupported query \"%s\"", optarg);
 			printf("%s\n", cp);
@@ -979,7 +983,7 @@ main(int ac, char **av)
 	sensitive_data.external_keysign = 0;
 	if (options.rhosts_rsa_authentication ||
 	    options.hostbased_authentication) {
-		sensitive_data.nkeys = 7;
+		sensitive_data.nkeys = 8;
 		sensitive_data.keys = xcalloc(sensitive_data.nkeys,
 		    sizeof(struct sshkey));
 
@@ -1001,22 +1005,27 @@ main(int ac, char **av)
 		L_KEYCERT(KEY_DSA, _PATH_HOST_DSA_KEY_FILE, 1);
 		L_KEYCERT(KEY_ECDSA, _PATH_HOST_ECDSA_KEY_FILE, 2);
 		L_KEYCERT(KEY_RSA, _PATH_HOST_RSA_KEY_FILE, 3);
-		L_KEY(KEY_DSA, _PATH_HOST_DSA_KEY_FILE, 4);
-		L_KEY(KEY_ECDSA, _PATH_HOST_ECDSA_KEY_FILE, 5);
-		L_KEY(KEY_RSA, _PATH_HOST_RSA_KEY_FILE, 6);
+		L_KEYCERT(KEY_ED25519, _PATH_HOST_ED25519_KEY_FILE, 4);
+		L_KEY(KEY_DSA, _PATH_HOST_DSA_KEY_FILE, 5);
+		L_KEY(KEY_ECDSA, _PATH_HOST_ECDSA_KEY_FILE, 6);
+		L_KEY(KEY_RSA, _PATH_HOST_RSA_KEY_FILE, 7);
+		L_KEY(KEY_ED25519, _PATH_HOST_ED25519_KEY_FILE, 8);
 		PRIV_END;
 
 		if (options.hostbased_authentication == 1 &&
 		    sensitive_data.keys[0] == NULL &&
-		    sensitive_data.keys[4] == NULL &&
 		    sensitive_data.keys[5] == NULL &&
-		    sensitive_data.keys[6] == NULL) {
+		    sensitive_data.keys[6] == NULL &&
+		    sensitive_data.keys[7] == NULL &&
+		    sensitive_data.keys[8] == NULL) {
 			L_CERT(_PATH_HOST_DSA_KEY_FILE, 1);
 			L_CERT(_PATH_HOST_ECDSA_KEY_FILE, 2);
 			L_CERT(_PATH_HOST_RSA_KEY_FILE, 3);
-			L_PUBKEY(_PATH_HOST_DSA_KEY_FILE, 4);
-			L_PUBKEY(_PATH_HOST_ECDSA_KEY_FILE, 5);
-			L_PUBKEY(_PATH_HOST_RSA_KEY_FILE, 6);
+			L_CERT(_PATH_HOST_ED25519_KEY_FILE, 4);
+			L_PUBKEY(_PATH_HOST_DSA_KEY_FILE, 5);
+			L_PUBKEY(_PATH_HOST_ECDSA_KEY_FILE, 6);
+			L_PUBKEY(_PATH_HOST_RSA_KEY_FILE, 7);
+			L_PUBKEY(_PATH_HOST_ED25519_KEY_FILE, 8);
 			sensitive_data.external_keysign = 1;
 		}
 	}

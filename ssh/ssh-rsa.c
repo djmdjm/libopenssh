@@ -43,6 +43,11 @@ ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	int nid, ret = SSH_ERR_INTERNAL_ERROR;
 	struct sshbuf *b = NULL;
 
+	if (lenp != NULL)
+		*lenp = 0;
+	if (sigp != NULL)
+		*sigp = NULL;
+
 	if (key == NULL || key->rsa == NULL || (key->type != KEY_RSA &&
 	    key->type != KEY_RSA_CERT && key->type != KEY_RSA_CERT_V00))
 		return SSH_ERR_INVALID_ARGUMENT;
@@ -71,7 +76,7 @@ ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	if (len < slen) {
 		size_t diff = slen - len;
 		memmove(sig + diff, sig, len);
-		memset(sig, 0, diff);
+		explicit_bzero(sig, diff);
 	} else if (len > slen) {
 		ret = SSH_ERR_INTERNAL_ERROR;
 		goto out;
@@ -85,8 +90,6 @@ ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	    (ret = sshbuf_put_string(b, sig, slen)) != 0)
 		goto out;
 	len = sshbuf_len(b);
-	if (lenp != NULL)
-		*lenp = len;
 	if (sigp != NULL) {
 		if ((*sigp = malloc(len)) == NULL) {
 			ret = SSH_ERR_ALLOC_FAIL;
@@ -94,12 +97,14 @@ ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 		}
 		memcpy(*sigp, sshbuf_ptr(b), len);
 	}
+	if (lenp != NULL)
+		*lenp = len;
 	ret = 0;
  out:
-	bzero(digest, sizeof(digest));
-	bzero(&md, sizeof(md));
+	explicit_bzero(digest, sizeof(digest));
+	explicit_bzero(&md, sizeof(md));
 	if (sig != NULL) {
-		memset(sig, 's', slen);
+		explicit_bzero(sig, slen);
 		free(sig);
 	}
 	if (b != NULL)
@@ -153,13 +158,13 @@ ssh_rsa_verify(const struct sshkey *key,
 		diff = modlen - len;
 		osigblob = sigblob;
 		if ((sigblob = realloc(sigblob, modlen)) == NULL) {
-			memset(osigblob, 's', len);
+			explicit_bzero(osigblob, len);
 			free(osigblob);
 			ret = SSH_ERR_ALLOC_FAIL;
 			goto out;
 		}
 		memmove(sigblob + diff, sigblob, len);
-		memset(sigblob, 0, diff);
+		explicit_bzero(sigblob, diff);
 		len = modlen;
 	}
 	nid = (compat & SSH_BUG_RSASIGMD5) ? NID_md5 : NID_sha1;
@@ -177,15 +182,15 @@ ssh_rsa_verify(const struct sshkey *key,
 	ret = openssh_RSA_verify(nid, digest, dlen, sigblob, len, key->rsa);
  out:
 	if (sigblob != NULL) {
-		memset(sigblob, 's', len);
+		explicit_bzero(sigblob, len);
 		free(sigblob);
 	}
 	if (ktype != NULL)
 		free(ktype);
 	if (b != NULL)
 		sshbuf_free(b);
-	bzero(digest, sizeof(digest));
-	bzero(&md, sizeof(md));
+	explicit_bzero(digest, sizeof(digest));
+	explicit_bzero(&md, sizeof(md));
 	return ret;
 }
 
@@ -275,7 +280,7 @@ openssh_RSA_verify(int type, u_char *hash, size_t hashlen,
 	ret = 0;
 done:
 	if (decrypted) {
-		bzero(decrypted, rsasize);
+		explicit_bzero(decrypted, rsasize);
 		free(decrypted);
 	}
 	return ret;

@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-keyscan.c,v 1.87 2013/05/17 00:13:14 djm Exp $ */
+/* $OpenBSD: ssh-keyscan.c,v 1.89 2013/12/06 13:39:49 markus Exp $ */
 /*
  * Copyright 1995, 1996 by David Mazieres <dm@lcs.mit.edu>.
  *
@@ -52,6 +52,7 @@ int ssh_port = SSH_DEFAULT_PORT;
 #define KT_DSA		2
 #define KT_RSA		4
 #define KT_ECDSA	8
+#define KT_ED25519	16
 
 int get_keytypes = KT_RSA|KT_ECDSA;/* Get RSA and ECDSA keys by default */
 
@@ -245,9 +246,11 @@ keygrab_ssh2(con *c)
 	int r;
 
 	enable_compat20();
-	myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] = c->c_keytype == KT_DSA?
-	    "ssh-dss" : (c->c_keytype == KT_RSA ? "ssh-rsa" :
-	    "ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521");
+	myproposal[PROPOSAL_SERVER_HOST_KEY_ALGS] =
+	    c->c_keytype == KT_DSA ?  "ssh-dss" :
+	    (c->c_keytype == KT_RSA ? "ssh-rsa" :
+	    (c->c_keytype == KT_ED25519 ? "ssh-ed25519" :
+	    "ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521"));
 	if ((r = kex_setup(c->c_ssh, myproposal)) != 0) {
 		free(c->c_ssh);
 		fprintf(stderr, "kex_setup: %s\n", ssh_err(r));
@@ -577,7 +580,7 @@ do_host(char *host)
 
 	if (name == NULL)
 		return;
-	for (j = KT_RSA1; j <= KT_ECDSA; j *= 2) {
+	for (j = KT_RSA1; j <= KT_ED25519; j *= 2) {
 		if (get_keytypes & j) {
 			while (ncon >= MAXCON)
 				conloop();
@@ -678,6 +681,9 @@ main(int argc, char **argv)
 					break;
 				case KEY_RSA:
 					get_keytypes |= KT_RSA;
+					break;
+				case KEY_ED25519:
+					get_keytypes |= KT_ED25519;
 					break;
 				case KEY_UNSPEC:
 					fatal("unknown key type %s", tname);

@@ -1,4 +1,4 @@
-/* $OpenBSD: key.h,v 1.39 2013/12/06 13:30:08 markus Exp $ */
+/* $OpenBSD: key.h,v 1.40 2013/12/06 13:39:49 markus Exp $ */
 
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
@@ -52,9 +52,11 @@ enum sshkey_types {
 	KEY_RSA,
 	KEY_DSA,
 	KEY_ECDSA,
+	KEY_ED25519,
 	KEY_RSA_CERT,
 	KEY_DSA_CERT,
 	KEY_ECDSA_CERT,
+	KEY_ED25519_CERT,
 	KEY_RSA_CERT_V00,
 	KEY_DSA_CERT_V00,
 	KEY_UNSPEC
@@ -101,8 +103,13 @@ struct sshkey {
 	DSA	*dsa;
 	int	 ecdsa_nid;	/* NID of curve */
 	EC_KEY	*ecdsa;
+	u_char	*ed25519_sk;
+	u_char	*ed25519_pk;
 	struct sshkey_cert *cert;
 };
+
+#define	ED25519_SK_SZ	crypto_sign_ed25519_SECRETKEYBYTES
+#define	ED25519_PK_SZ	crypto_sign_ed25519_PUBLICKEYBYTES
 
 struct sshkey	*sshkey_new(int);
 int		 sshkey_add_private(struct sshkey *);
@@ -133,8 +140,7 @@ int	 sshkey_drop_cert(struct sshkey *);
 int	 sshkey_certify(struct sshkey *, struct sshkey *);
 int	 sshkey_cert_copy(const struct sshkey *, struct sshkey *);
 int	 sshkey_cert_check_authority(const struct sshkey *, int, int,
-    const char *,
-	    const char **);
+    const char *, const char **);
 int	 sshkey_cert_is_legacy(const struct sshkey *);
 
 int		 sshkey_ecdsa_nid_from_name(const char *);
@@ -149,7 +155,7 @@ int		 sshkey_ec_validate_private(const EC_KEY *);
 const char	*sshkey_ssh_name(const struct sshkey *);
 const char	*sshkey_ssh_name_plain(const struct sshkey *);
 int		 sshkey_names_valid2(const char *);
-char		*sshkey_alg_list(void);
+char		*key_alg_list(int, int);
 
 int	 sshkey_from_blob(const u_char *, size_t, struct sshkey **);
 int	 sshkey_to_blob_buf(const struct sshkey *, struct sshbuf *);
@@ -180,6 +186,11 @@ int ssh_dss_verify(const struct sshkey *key,
 int ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
     const u_char *data, size_t datalen, u_int compat);
 int ssh_ecdsa_verify(const struct sshkey *key,
+    const u_char *signature, size_t signaturelen,
+    const u_char *data, size_t datalen, u_int compat);
+int ssh_ed25519_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
+    const u_char *data, size_t datalen, u_int compat);
+int ssh_ed25519_verify(const struct sshkey *key,
     const u_char *signature, size_t signaturelen,
     const u_char *data, size_t datalen, u_int compat);
 #endif
