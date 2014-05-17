@@ -1,4 +1,4 @@
-/* $OpenBSD: kex.h,v 1.56 2013/07/19 07:37:48 markus Exp $ */
+/* $OpenBSD: kex.h,v 1.61 2014/01/25 10:12:50 dtucker Exp $ */
 
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
@@ -108,6 +108,7 @@ struct kex {
 	size_t	session_id_len;
 	struct newkeys	*newkeys[MODE_MAX];
 	u_int	we_need;
+	u_int	dh_need;
 	int	server;
 	char	*name;
 	int	hostkey_type;

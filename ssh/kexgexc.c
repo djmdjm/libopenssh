@@ -1,4 +1,4 @@
-/* $OpenBSD: kexgexc.c,v 1.13 2013/05/17 00:13:13 djm Exp $ */
+/* $OpenBSD: kexgexc.c,v 1.16 2014/01/25 10:12:50 dtucker Exp $ */
 /*
  * Copyright (c) 2000 Niels Provos.  All rights reserved.
  * Copyright (c) 2001 Markus Friedl.  All rights reserved.
@@ -54,7 +54,7 @@ kexgex_client(struct ssh *ssh)
 	int r;
 	u_int nbits;
 
-	nbits = dh_estimate(kex->we_need * 8);
+	nbits = dh_estimate(kex->dh_need * 8);
 
 	kex->min = DH_GRP_MIN;
 	kex->max = DH_GRP_MAX;
