@@ -1,4 +1,4 @@
-/* $OpenBSD: key.c,v 1.109 2013/12/06 13:39:49 markus Exp $ */
+/* $OpenBSD: key.c,v 1.114 2013/12/29 04:20:04 djm Exp $ */
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
  * Copyright (c) 2008 Alexander von Gernler.  All rights reserved.
@@ -226,6 +226,20 @@ sshkey_curve_name_to_nid(const char *name)
 		return NID_secp521r1;
 	else
 		return -1;
+}
+
+static int
+sshkey_type_is_valid_ca(int type)
+{
+	switch (type) {
+	case KEY_RSA:
+	case KEY_DSA:
+	case KEY_ECDSA:
+	case KEY_ED25519:
+		return 1;
+	default:
+		return 0;
+	}
 }
 
 u_int
@@ -1728,9 +1742,7 @@ cert_parse(struct sshbuf *b, struct sshkey *key, const u_char *blob,
 		ret = SSH_ERR_KEY_CERT_INVALID_SIGN_KEY;
 		goto out;
 	}
-	if (key->cert->signature_key->type != KEY_RSA &&
-	    key->cert->signature_key->type != KEY_DSA &&
-	    key->cert->signature_key->type != KEY_ECDSA) {
+	if (!sshkey_type_is_valid_ca(key->cert->signature_key->type)) {
 		ret = SSH_ERR_KEY_CERT_INVALID_SIGN_KEY;
 		goto out;
 	}
@@ -2119,7 +2131,7 @@ sshkey_type_plain(int type)
 	}
 }
 
-/* Convert a KEY_RSA or KEY_DSA to their _CERT equivalent */
+/* Convert a plain key to their _CERT equivalent */
 int
 sshkey_to_certified(struct sshkey *k, int legacy)
 {
@@ -2130,7 +2142,7 @@ sshkey_to_certified(struct sshkey *k, int legacy)
 	return 0;
 }
 
-/* Convert a KEY_RSA_CERT or KEY_DSA_CERT to their raw key equivalent */
+/* Convert a certificate to its raw key equivalent */
 int
 sshkey_drop_cert(struct sshkey *k)
 {
@@ -2152,12 +2164,12 @@ sshkey_certify(struct sshkey *k, struct sshkey *ca)
 	int ret = SSH_ERR_INTERNAL_ERROR;
 	struct sshbuf *cert;
 
-	if (k == NULL || k->cert == NULL || k->cert->certblob == NULL)
+	if (k == NULL || k->cert == NULL ||
+	    k->cert->certblob == NULL || ca == NULL)
 		return SSH_ERR_INVALID_ARGUMENT;
 	if (!sshkey_is_cert(k))
 		return SSH_ERR_KEY_TYPE_UNKNOWN;
-	if (ca->type != KEY_RSA && ca->type != KEY_DSA &&
-	    ca->type != KEY_ECDSA && ca->type != KEY_ED25519)
+	if (!sshkey_type_is_valid_ca(ca->type))
 		return SSH_ERR_KEY_CERT_INVALID_SIGN_KEY;
 
 	if ((ret = sshkey_to_blob(ca, &ca_blob, &ca_len)) != 0)
