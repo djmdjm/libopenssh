@@ -1,4 +1,4 @@
-/* $OpenBSD: cipher.c,v 1.94 2014/01/25 10:12:50 dtucker Exp $ */
+/* $OpenBSD: cipher.c,v 1.98 2014/04/29 18:01:49 markus Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -37,8 +37,6 @@
 
 #include <sys/types.h>
 
-#include <openssl/md5.h>
-
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -46,10 +44,14 @@
 #include "err.h"
 #include "cipher.h"
 #include "misc.h"
+#include "sshbuf.h"
+#include "digest.h"
 
+#ifdef WITH_SSH1
 extern const EVP_CIPHER *evp_ssh1_bf(void);
 extern const EVP_CIPHER *evp_ssh1_3des(void);
 extern int ssh1_3des_iv(EVP_CIPHER_CTX *, int, u_char *, int);
+#endif
 
 struct sshcipher {
 	char	*name;
@@ -62,15 +64,23 @@ struct sshcipher {
 	u_int	flags;
 #define CFLAG_CBC		(1<<0)
 #define CFLAG_CHACHAPOLY	(1<<1)
+#define CFLAG_AESCTR		(1<<2)
+#define CFLAG_NONE		(1<<3)
+#ifdef WITH_OPENSSL
 	const EVP_CIPHER	*(*evptype)(void);
+#else
+	void	*ignored;
+#endif
 };
 
 static const struct sshcipher ciphers[] = {
-	{ "none",	SSH_CIPHER_NONE, 8, 0, 0, 0, 0, 0, EVP_enc_null },
+#ifdef WITH_SSH1
 	{ "des",	SSH_CIPHER_DES, 8, 8, 0, 0, 0, 1, EVP_des_cbc },
 	{ "3des",	SSH_CIPHER_3DES, 8, 16, 0, 0, 0, 1, evp_ssh1_3des },
 	{ "blowfish",	SSH_CIPHER_BLOWFISH, 8, 32, 0, 0, 0, 1, evp_ssh1_bf },
-
+#endif
+#ifdef WITH_OPENSSL
+	{ "none",	SSH_CIPHER_NONE, 8, 0, 0, 0, 0, 0, EVP_enc_null },
 	{ "3des-cbc",	SSH_CIPHER_SSH2, 8, 24, 0, 0, 0, 1, EVP_des_ede3_cbc },
 	{ "blowfish-cbc",
 			SSH_CIPHER_SSH2, 8, 16, 0, 0, 0, 1, EVP_bf_cbc },
@@ -91,6 +101,12 @@ static const struct sshcipher ciphers[] = {
 			SSH_CIPHER_SSH2, 16, 16, 12, 16, 0, 0, EVP_aes_128_gcm },
 	{ "aes256-gcm@openssh.com",
 			SSH_CIPHER_SSH2, 16, 32, 12, 16, 0, 0, EVP_aes_256_gcm },
+#else
+	{ "aes128-ctr",	SSH_CIPHER_SSH2, 16, 16, 0, 0, 0, CFLAG_AESCTR, NULL },
+	{ "aes192-ctr",	SSH_CIPHER_SSH2, 16, 24, 0, 0, 0, CFLAG_AESCTR, NULL },
+	{ "aes256-ctr",	SSH_CIPHER_SSH2, 16, 32, 0, 0, 0, CFLAG_AESCTR, NULL },
+	{ "none",	SSH_CIPHER_NONE, 8, 0, 0, 0, 0, CFLAG_NONE, NULL },
+#endif
 	{ "chacha20-poly1305@openssh.com",
 			SSH_CIPHER_SSH2, 8, 64, 0, 16, 0, CFLAG_CHACHAPOLY, NULL },
 
@@ -268,6 +284,7 @@ cipher_init(struct sshcipher_ctx *cc, const struct sshcipher *cipher,
     const u_char *key, u_int keylen, const u_char *iv, u_int ivlen,
     int do_encrypt)
 {
+#ifdef WITH_OPENSSL
 	int ret = SSH_ERR_INTERNAL_ERROR;
 	const EVP_CIPHER *type;
 	int klen;
@@ -277,6 +294,7 @@ cipher_init(struct sshcipher_ctx *cc, const struct sshcipher *cipher,
 		if (keylen > 8)
 			keylen = 8;
 	}
+#endif
 	cc->plaintext = (cipher->number == SSH_CIPHER_NONE);
 	cc->encrypt = do_encrypt;
 
@@ -288,14 +306,22 @@ cipher_init(struct sshcipher_ctx *cc, const struct sshcipher *cipher,
 	if ((cc->cipher->flags & CFLAG_CHACHAPOLY) != 0) {
 		return chachapoly_init(&cc->cp_ctx, key, keylen);
 	}
+#ifndef WITH_OPENSSL
+	if ((cc->cipher->flags & CFLAG_AESCTR) != 0) {
+		aesctr_keysetup(&cc->ac_ctx, key, 8 * keylen, 8 * ivlen);
+		aesctr_ivsetup(&cc->ac_ctx, iv);
+		return 0;
+	}
+	if ((cc->cipher->flags & CFLAG_NONE) != 0)
+		return 0;
+	return SSH_ERR_INVALID_ARGUMENT;
+#else
 	type = (*cipher->evptype)();
 	EVP_CIPHER_CTX_init(&cc->evp);
 	if (EVP_CipherInit(&cc->evp, type, NULL, (u_char *)iv,
 	    (do_encrypt == CIPHER_ENCRYPT)) == 0) {
 		ret = SSH_ERR_LIBCRYPTO_ERROR;
- bad:
-		EVP_CIPHER_CTX_cleanup(&cc->evp);
-		return ret;
+		goto bad;
 	}
 	if (cipher_authlen(cipher) &&
 	    !EVP_CIPHER_CTX_ctrl(&cc->evp, EVP_CTRL_GCM_SET_IV_FIXED,
@@ -329,9 +355,12 @@ cipher_init(struct sshcipher_ctx *cc, const struct sshcipher *cipher,
 		free(discard);
 		if (ret != 1) {
 			ret = SSH_ERR_LIBCRYPTO_ERROR;
-			goto bad;
+ bad:
+			EVP_CIPHER_CTX_cleanup(&cc->evp);
+			return ret;
 		}
 	}
+#endif
 	return 0;
 }
 
@@ -353,6 +382,20 @@ cipher_crypt(struct sshcipher_ctx *cc, u_int seqnr, u_char *dest,
 		return chachapoly_crypt(&cc->cp_ctx, seqnr, dest, src,
 		    len, aadlen, authlen, cc->encrypt);
 	}
+#ifndef WITH_OPENSSL
+	if ((cc->cipher->flags & CFLAG_AESCTR) != 0) {
+		if (aadlen)
+			memcpy(dest, src, aadlen);
+		aesctr_encrypt_bytes(&cc->ac_ctx, src + aadlen,
+		    dest + aadlen, len);
+		return 0;
+	}
+	if ((cc->cipher->flags & CFLAG_NONE) != 0) {
+		memcpy(dest, src, aadlen + len);
+		return 0;
+	}
+	return SSH_ERR_INVALID_ARGUMENT;
+#else
 	if (authlen) {
 		u_char lastiv[1];
 
@@ -390,6 +433,7 @@ cipher_crypt(struct sshcipher_ctx *cc, u_int seqnr, u_char *dest,
 			return SSH_ERR_LIBCRYPTO_ERROR;
 	}
 	return 0;
+#endif
 }
 
 /* Extract the packet length, including any decryption necessary beforehand */
@@ -411,8 +455,12 @@ cipher_cleanup(struct sshcipher_ctx *cc)
 {
 	if ((cc->cipher->flags & CFLAG_CHACHAPOLY) != 0)
 		explicit_bzero(&cc->cp_ctx, sizeof(cc->cp_ctx));
+	else if ((cc->cipher->flags & CFLAG_AESCTR) != 0)
+		explicit_bzero(&cc->ac_ctx, sizeof(cc->ac_ctx));
+#ifdef WITH_OPENSSL
 	else if (EVP_CIPHER_CTX_cleanup(&cc->evp) == 0)
 		return SSH_ERR_LIBCRYPTO_ERROR;
+#endif
 	return 0;
 }
 
@@ -422,23 +470,20 @@ cipher_cleanup(struct sshcipher_ctx *cc)
  */
 int
 cipher_set_key_string(struct sshcipher_ctx *cc, const struct sshcipher *cipher,
-    const char *pphrase, int do_encrypt)
+    const char *passphrase, int do_encrypt)
 {
-	MD5_CTX md;
 	u_char digest[16];
-	int ret = SSH_ERR_LIBCRYPTO_ERROR;
+	int r = SSH_ERR_INTERNAL_ERROR;
 
-	if (MD5_Init(&md) != 1 ||
-	    MD5_Update(&md, (const u_char *)pphrase, strlen(pphrase)) != 1 ||
-	    MD5_Final(digest, &md) != 1)
+	if ((r = ssh_digest_memory(SSH_DIGEST_MD5,
+	    passphrase, strlen(passphrase),
+	    digest, sizeof(digest))) != 0)
 		goto out;
 
-	ret = cipher_init(cc, cipher, digest, 16, NULL, 0, do_encrypt);
-
+	r = cipher_init(cc, cipher, digest, 16, NULL, 0, do_encrypt);
  out:
 	explicit_bzero(digest, sizeof(digest));
-	explicit_bzero(&md, sizeof(md));
-	return ret;
+	return r;
 }
 
 /*
@@ -465,15 +510,20 @@ int
 cipher_get_keyiv(struct sshcipher_ctx *cc, u_char *iv, u_int len)
 {
 	const struct sshcipher *c = cc->cipher;
-	int evplen;
+#ifdef WITH_OPENSSL
+ 	int evplen;
+#endif
 
 	if ((cc->cipher->flags & CFLAG_CHACHAPOLY) != 0) {
 		if (len != 0)
 			return SSH_ERR_INVALID_ARGUMENT;
 		return 0;
 	}
+	if ((cc->cipher->flags & CFLAG_NONE) != 0)
+		return 0;
 
 	switch (c->number) {
+#ifdef WITH_OPENSSL
 	case SSH_CIPHER_SSH2:
 	case SSH_CIPHER_DES:
 	case SSH_CIPHER_BLOWFISH:
@@ -491,8 +541,11 @@ cipher_get_keyiv(struct sshcipher_ctx *cc, u_char *iv, u_int len)
 		} else
 			memcpy(iv, cc->evp.iv, len);
 		break;
+#endif
+#ifdef WITH_SSH1
 	case SSH_CIPHER_3DES:
 		return ssh1_3des_iv(&cc->evp, 0, iv, 24);
+#endif
 	default:
 		return SSH_ERR_INVALID_ARGUMENT;
 	}
@@ -503,12 +556,17 @@ int
 cipher_set_keyiv(struct sshcipher_ctx *cc, const u_char *iv)
 {
 	const struct sshcipher *c = cc->cipher;
-	int evplen = 0;
+#ifdef WITH_OPENSSL
+ 	int evplen = 0;
+#endif
 
 	if ((cc->cipher->flags & CFLAG_CHACHAPOLY) != 0)
 		return 0;
+	if ((cc->cipher->flags & CFLAG_NONE) != 0)
+		return 0;
 
 	switch (c->number) {
+#ifdef WITH_OPENSSL
 	case SSH_CIPHER_SSH2:
 	case SSH_CIPHER_DES:
 	case SSH_CIPHER_BLOWFISH:
@@ -523,20 +581,26 @@ cipher_set_keyiv(struct sshcipher_ctx *cc, const u_char *iv)
 		} else
 			memcpy(cc->evp.iv, iv, evplen);
 		break;
+#endif
+#ifdef WITH_SSH1
 	case SSH_CIPHER_3DES:
 		return ssh1_3des_iv(&cc->evp, 1, (u_char *)iv, 24);
+#endif
 	default:
 		return SSH_ERR_INVALID_ARGUMENT;
 	}
 	return 0;
 }
 
+#ifdef WITH_OPENSSL
 #define EVP_X_STATE(evp)	(evp).cipher_data
 #define EVP_X_STATE_LEN(evp)	(evp).cipher->ctx_size
+#endif
 
 int
 cipher_get_keycontext(const struct sshcipher_ctx *cc, u_char *dat)
 {
+#ifdef WITH_OPENSSL
 	const struct sshcipher *c = cc->cipher;
 	int plen = 0;
 
@@ -547,11 +611,15 @@ cipher_get_keycontext(const struct sshcipher_ctx *cc, u_char *dat)
 		memcpy(dat, EVP_X_STATE(cc->evp), plen);
 	}
 	return (plen);
+#else
+	return 0;
+#endif
 }
 
 void
 cipher_set_keycontext(struct sshcipher_ctx *cc, const u_char *dat)
 {
+#ifdef WITH_OPENSSL
 	const struct sshcipher *c = cc->cipher;
 	int plen;
 
@@ -559,4 +627,5 @@ cipher_set_keycontext(struct sshcipher_ctx *cc, const u_char *dat)
 		plen = EVP_X_STATE_LEN(cc->evp);
 		memcpy(EVP_X_STATE(cc->evp), dat, plen);
 	}
+#endif
 }

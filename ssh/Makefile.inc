@@ -43,6 +43,8 @@ CFLAGS+=	-DENABLE_PKCS11
 CFLAGS+=	-DHAVE_DLOPEN
 .endif
 
+CFLAGS+=   -DWITH_OPENSSL -DWITH_SSH1
+
 .include <bsd.obj.mk>
 
 .if !defined(LIB)

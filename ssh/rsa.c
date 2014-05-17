@@ -104,11 +104,11 @@ rsa_public_encrypt(BIGNUM *out, BIGNUM *in, RSA *key)
 
  out:
 	if (outbuf != NULL) {
-		memset(outbuf, 0, olen);
+		explicit_bzero(outbuf, olen);
 		free(outbuf);
 	}
 	if (inbuf != NULL) {
-		memset(inbuf, 0, ilen);
+		explicit_bzero(inbuf, ilen);
 		free(inbuf);
 	}
 	return r;
@@ -144,11 +144,11 @@ rsa_private_decrypt(BIGNUM *out, BIGNUM *in, RSA *key)
 	r = 0;
  out:
 	if (outbuf != NULL) {
-		memset(outbuf, 0, olen);
+		explicit_bzero(outbuf, olen);
 		free(outbuf);
 	}
 	if (inbuf != NULL) {
-		memset(inbuf, 0, ilen);
+		explicit_bzero(inbuf, ilen);
 		free(inbuf);
 	}
 	return r;
