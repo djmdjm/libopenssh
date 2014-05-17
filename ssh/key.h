@@ -172,6 +172,20 @@ int	 sshkey_verify(const struct sshkey *, const u_char *, size_t,
 void	sshkey_dump_ec_point(const EC_GROUP *, const EC_POINT *);
 void	sshkey_dump_ec_key(const EC_KEY *);
 
+/* private key parsing and serialisation */
+int	sshkey_private_to_fileblob(struct sshkey *key, struct sshbuf *blob,
+    const char *passphrase, const char *comment,
+    int force_new_format, const char *new_format_cipher, int new_format_rounds);
+int	sshkey_parse_public_rsa1_fileblob(struct sshbuf *blob,
+    struct sshkey **keyp, char **commentp);
+int	sshkey_parse_private_pem_fileblob(struct sshbuf *blob, int type,
+    const char *passphrase, struct sshkey **keyp, char **commentp);
+int	sshkey_parse_private_fileblob(struct sshbuf *buffer,
+    const char *passphrase, const char *filename, struct sshkey **keyp,
+    char **commentp);
+int	sshkey_parse_private_fileblob_type(struct sshbuf *blob, int type,
+    const char *passphrase, struct sshkey **keyp, char **commentp);
+
 #ifdef SSHKEY_INTERNAL
 int ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
     const u_char *data, size_t datalen, u_int compat);
