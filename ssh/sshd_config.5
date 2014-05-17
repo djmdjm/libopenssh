@@ -336,7 +336,8 @@ The default is not to
 .It Cm Ciphers
 Specifies the ciphers allowed for protocol version 2.
 Multiple ciphers must be comma-separated.
-The supported ciphers are
+The supported ciphers are:
+.Pp
 .Dq 3des-cbc ,
 .Dq aes128-cbc ,
 .Dq aes192-cbc ,
@@ -350,15 +351,24 @@ The supported ciphers are
 .Dq arcfour256 ,
 .Dq arcfour ,
 .Dq blowfish-cbc ,
+.Dq cast128-cbc ,
 and
-.Dq cast128-cbc .
+.Dq chacha20-poly1305@openssh.com .
+.Pp
 The default is:
+.Pp
 .Bd -literal -offset 3n
 aes128-ctr,aes192-ctr,aes256-ctr,arcfour256,arcfour128,
 aes128-gcm@openssh.com,aes256-gcm@openssh.com,
+chacha20-poly1305@openssh.com,
 aes128-cbc,3des-cbc,blowfish-cbc,cast128-cbc,aes192-cbc,
 aes256-cbc,arcfour
 .Ed
+.Pp
+The list of available ciphers may also be obtained using the
+.Fl Q
+option of
+.Xr ssh 1 .
 .It Cm ClientAliveCountMax
 Sets the number of client alive messages (see below) which may be
 sent without

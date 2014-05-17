@@ -1,4 +1,4 @@
-/* $OpenBSD: authfile.c,v 1.104 2014/03/12 04:51:12 djm Exp $ */
+/* $OpenBSD: authfile.c,v 1.98 2013/11/21 00:45:43 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -187,7 +187,7 @@ sshkey_private_to_blob2(const struct sshkey *prv, struct sshbuf *blob,
 	if ((r = sshbuf_reserve(encoded,
 	    sshbuf_len(encrypted) + authlen, &cp)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&ciphercontext, cp,
+	if ((r = cipher_crypt(&ciphercontext, 0, cp,
 	    sshbuf_ptr(encrypted), sshbuf_len(encrypted), 0, authlen)) != 0)
 		goto out;
 
@@ -378,7 +378,7 @@ sshkey_parse_private2(struct sshbuf *blob, int type, const char *passphrase,
 	    (r = cipher_init(&ciphercontext, cipher, key, keylen,
 	    key + keylen, ivlen, 0)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&ciphercontext, dp, sshbuf_ptr(decoded),
+	if ((r = cipher_crypt(&ciphercontext, 0, dp, sshbuf_ptr(decoded),
 	    sshbuf_len(decoded), 0, cipher_authlen(cipher))) != 0) {
 		/* an integrity error here indicates an incorrect passphrase */
 		if (r == SSH_ERR_MAC_INVALID)
@@ -534,7 +534,7 @@ sshkey_private_rsa1_to_blob(struct sshkey *key, struct sshbuf *blob,
 	if ((r = cipher_set_key_string(&ciphercontext, cipher, passphrase,
 	    CIPHER_ENCRYPT)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&ciphercontext, cp,
+	if ((r = cipher_crypt(&ciphercontext, 0, cp,
 	    sshbuf_ptr(buffer), sshbuf_len(buffer), 0, 0)) != 0)
 		goto out;
 	if ((r = cipher_cleanup(&ciphercontext)) != 0)
@@ -869,7 +869,7 @@ sshkey_parse_private_rsa1(struct sshbuf *blob, const char *passphrase,
 	if ((r = cipher_set_key_string(&ciphercontext, cipher, passphrase,
 	    CIPHER_DECRYPT)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&ciphercontext, cp,
+	if ((r = cipher_crypt(&ciphercontext, 0, cp,
 	    sshbuf_ptr(copy), sshbuf_len(copy), 0, 0)) != 0) {
 		cipher_cleanup(&ciphercontext);
 		goto out;

@@ -1,4 +1,4 @@
-/* $OpenBSD: packet.c,v 1.191 2013/12/06 13:34:54 markus Exp $ */
+/* $OpenBSD: packet.c,v 1.190 2013/11/21 00:45:44 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -874,7 +874,7 @@ ssh_packet_send1(struct ssh *ssh)
 	if ((r = sshbuf_reserve(state->output,
 	    sshbuf_len(state->outgoing_packet), &cp)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&state->send_context, cp,
+	if ((r = cipher_crypt(&state->send_context, 0, cp,
 	    sshbuf_ptr(state->outgoing_packet),
 	    sshbuf_len(state->outgoing_packet), 0, 0)) != 0)
 		goto out;
@@ -1142,9 +1142,9 @@ ssh_packet_send2_wrapped(struct ssh *ssh)
 	if ((r = sshbuf_reserve(state->output,
 	    sshbuf_len(state->outgoing_packet) + authlen, &cp)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&state->send_context, cp,
-	    sshbuf_ptr(state->outgoing_packet),
-	    len - aadlen, aadlen, authlen)) != 0)
+	if ((r = cipher_crypt(&state->send_context, state->p_send.seqnr,
+	    cp, sshbuf_ptr(state->outgoing_packet), len - aadlen,
+	    aadlen, authlen)) != 0)
 		goto out;
 	/* append unencrypted MAC */
 	if (mac && mac->enabled) {
@@ -1429,7 +1429,7 @@ ssh_packet_read_poll1(struct ssh *ssh, u_char *typep)
 	sshbuf_reset(state->incoming_packet);
 	if ((r = sshbuf_reserve(state->incoming_packet, padded_len, &p)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&state->receive_context, p,
+	if ((r = cipher_crypt(&state->receive_context, 0, p,
 	    sshbuf_ptr(state->input), padded_len, 0, 0)) != 0)
 		goto out;
 
@@ -1515,9 +1515,13 @@ ssh_packet_read_poll2(struct ssh *ssh, u_char *typep, u_int32_t *seqnr_p)
 	aadlen = (mac && mac->enabled && mac->etm) || authlen ? 4 : 0;
 
 	if (aadlen && state->packlen == 0) {
-		if (sshbuf_len(state->input) < 4)
-			return 0;
-		state->packlen = PEEK_U32(sshbuf_ptr(state->input));
+		r = cipher_get_length(&state->receive_context,
+		    &state->packlen,
+		    state->p_read.seqnr,
+		    sshbuf_ptr(state->input),
+		    sshbuf_len(state->input));
+		if (r != 0)
+			return r == SSH_ERR_MESSAGE_INCOMPLETE ? 0 : r;
 		if (state->packlen < 1 + 4 ||
 		    state->packlen > PACKET_MAX_SIZE) {
 #ifdef PACKET_DEBUG
@@ -1539,8 +1543,9 @@ ssh_packet_read_poll2(struct ssh *ssh, u_char *typep, u_int32_t *seqnr_p)
 		if ((r = sshbuf_reserve(state->incoming_packet, block_size,
 		    &cp)) != 0)
 			goto out;
-		if ((r = cipher_crypt(&state->receive_context, cp,
-		    sshbuf_ptr(state->input), block_size, 0, 0)) != 0)
+		if ((r = cipher_crypt(&state->receive_context,
+		    state->p_read.seqnr, cp, sshbuf_ptr(state->input),
+		    block_size, 0, 0)) != 0)
 			goto out;
 		state->packlen = PEEK_U32(sshbuf_ptr(state->incoming_packet));
 		if (state->packlen < 1 + 4 ||
@@ -1602,7 +1607,7 @@ ssh_packet_read_poll2(struct ssh *ssh, u_char *typep, u_int32_t *seqnr_p)
 	if ((r = sshbuf_reserve(state->incoming_packet, aadlen + need,
 	    &cp)) != 0)
 		goto out;
-	if ((r = cipher_crypt(&state->receive_context, cp,
+	if ((r = cipher_crypt(&state->receive_context, state->p_read.seqnr, cp,
 	    sshbuf_ptr(state->input), need, aadlen, authlen)) != 0)
 		goto out;
 	if ((r = sshbuf_consume(state->input, aadlen + need + authlen)) != 0)

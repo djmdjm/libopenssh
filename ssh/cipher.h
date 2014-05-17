@@ -1,4 +1,4 @@
-/* $OpenBSD: cipher.h,v 1.43 2013/12/06 13:34:54 markus Exp $ */
+/* $OpenBSD: cipher.h,v 1.42 2013/11/21 00:45:44 djm Exp $ */
 
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
@@ -39,6 +39,7 @@
 
 #include <sys/types.h>
 #include <openssl/evp.h>
+#include "cipher-chachapoly.h"
 
 /*
  * Cipher types for SSH-1.  New types can be added, but old types should not
@@ -65,6 +66,7 @@ struct sshcipher_ctx {
 	int	plaintext;
 	int	encrypt;
 	EVP_CIPHER_CTX evp;
+	struct chachapoly_ctx cp_ctx; /* XXX union with evp? */
 	const struct sshcipher *cipher;
 };
 
@@ -74,12 +76,14 @@ const struct sshcipher *cipher_by_number(int);
 int	 cipher_number(const char *);
 char	*cipher_name(int);
 int	 ciphers_valid(const char *);
-char	*cipher_alg_list(void);
+char	*cipher_alg_list(char, int);
 int	 cipher_init(struct sshcipher_ctx *, const struct sshcipher *,
     const u_char *, u_int, const u_char *, u_int, int);
 const char* cipher_warning_message(const struct sshcipher_ctx *);
-int	 cipher_crypt(struct sshcipher_ctx *, u_char *, const u_char *,
+int	 cipher_crypt(struct sshcipher_ctx *, u_int, u_char *, const u_char *,
     u_int, u_int, u_int);
+int	 cipher_get_length(struct sshcipher_ctx *, u_int *, u_int,
+    const u_char *, u_int);
 int	 cipher_cleanup(struct sshcipher_ctx *);
 int	 cipher_set_key_string(struct sshcipher_ctx *, const struct sshcipher *,
     const char *, int);

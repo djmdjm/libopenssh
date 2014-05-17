@@ -1,4 +1,4 @@
-/* $OpenBSD: dh.c,v 1.52 2013/10/08 11:42:13 dtucker Exp $ */
+/* $OpenBSD: dh.c,v 1.53 2013/11/21 00:45:44 djm Exp $ */
 /*
  * Copyright (c) 2000 Niels Provos.  All rights reserved.
  *
@@ -253,24 +253,17 @@ dh_pub_is_valid(DH *dh, BIGNUM *dh_pub)
 int
 dh_gen_key(DH *dh, int need)
 {
-	int tries = 0;
+	int pbits;
 
-	if (need < 0 || dh->p == NULL ||
-	    need > INT_MAX / 2 || 2 * need >= BN_num_bits(dh->p))
+	if (need < 0 || dh->p == NULL || need > INT_MAX / 2)
 		return SSH_ERR_INVALID_ARGUMENT;
-	do {
-		if (dh->priv_key != NULL)
-			BN_clear_free(dh->priv_key);
-		if ((dh->priv_key = BN_new()) == NULL)
-			return SSH_ERR_ALLOC_FAIL;
-		/* generate a 2*need bits random private exponent */
-		if (!BN_rand(dh->priv_key, 2*need, 0, 0) ||
-		    DH_generate_key(dh) == 0 || 
-		    tries++ > 10) {
-			BN_clear_free(dh->priv_key);
-			return SSH_ERR_LIBCRYPTO_ERROR;
-		}
-	} while (!dh_pub_is_valid(dh, dh->pub_key));
+	if ((pbits = BN_num_bits(dh->p)) <= 0)
+		return SSH_ERR_LIBCRYPTO_ERROR;
+	dh->length = MIN(need * 2, pbits - 1);
+	if (DH_generate_key(dh) == 0)
+		return SSH_ERR_LIBCRYPTO_ERROR;
+	if (!dh_pub_is_valid(dh, dh->pub_key))
+		return SSH_ERR_LIBCRYPTO_ERROR; /* XXX better error value? */
 	return 0;
 }
 
