@@ -1,4 +1,4 @@
-/* $OpenBSD: key.c,v 1.114 2013/12/29 04:20:04 djm Exp $ */
+/* $OpenBSD: key.c,v 1.115 2014/01/09 23:20:00 djm Exp $ */
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
  * Copyright (c) 2008 Alexander von Gernler.  All rights reserved.
@@ -45,6 +45,7 @@
 #include "sshbuf.h"
 #include "rsa.h"
 #include "cipher.h"
+#include "digest.h"
 #define SSHKEY_INTERNAL
 #include "key.h"
 
@@ -291,6 +292,24 @@ sshkey_curve_nid_to_name(int nid)
 	}
 }
 
+int
+sshkey_ec_nid_to_hash_alg(int nid)
+{
+	int kbits = sshkey_curve_nid_to_bits(nid);
+
+	if (kbits <= 0)
+		return -1;
+
+	/* RFC5656 section 6.2.1 */
+	if (kbits <= 256)
+		return SSH_DIGEST_SHA256;
+	else if (kbits <= 384)
+		return SSH_DIGEST_SHA384;
+	else
+		return SSH_DIGEST_SHA512;
+}
+
+/* XXX remove */
 const EVP_MD *
 sshkey_ec_nid_to_evpmd(int nid)
 {
@@ -734,75 +753,71 @@ sshkey_plain_to_blob(const struct sshkey *key, u_char **blobp, size_t *lenp)
 	return to_blob(key, blobp, lenp, 1);
 }
 
-u_char*
+int
 sshkey_fingerprint_raw(const struct sshkey *k, enum sshkey_fp_type dgst_type,
-    size_t *dgst_raw_length)
+    u_char **retp, size_t *lenp)
 {
-	const EVP_MD *md = NULL;
-	EVP_MD_CTX ctx;
-	u_char *blob;
-	u_char *retval = NULL;
-	size_t len = 0;
-	int nlen, elen, force_plain = 0;
-	u_int dlen;
+	u_char *blob = NULL;
+	u_char *ret = NULL;
+	size_t blob_len = 0;
+	int nlen, elen, force_plain = 0, hash_alg = -1;
+	int r = SSH_ERR_INTERNAL_ERROR;
 
-	*dgst_raw_length = 0;
+	if (retp != NULL)
+		*retp = NULL;
+	if (lenp != NULL)
+		*lenp = 0;
 
 	switch (dgst_type) {
 	case SSH_FP_MD5:
-		md = EVP_md5();
+		hash_alg = SSH_DIGEST_MD5;
 		break;
 	case SSH_FP_SHA1:
-		md = EVP_sha1();
+		hash_alg = SSH_DIGEST_SHA1;
 		break;
 	case SSH_FP_SHA256:
-		md = EVP_sha256();
+		hash_alg = SSH_DIGEST_SHA256;
 		break;
 	default:
-		return NULL;
+		r = SSH_ERR_INVALID_ARGUMENT;
+		goto out;
 	}
-	switch (k->type) {
-	case KEY_RSA1:
+
+	if (k->type == KEY_RSA1) {
 		nlen = BN_num_bytes(k->rsa->n);
 		elen = BN_num_bytes(k->rsa->e);
-		len = nlen + elen;
-		if ((blob = malloc(len)) == NULL)
-			return NULL;
+		blob_len = nlen + elen;
+		if (nlen >= INT_MAX - elen ||
+		    (blob = malloc(blob_len)) == NULL) {
+			r = SSH_ERR_ALLOC_FAIL;
+			goto out;
+		}
 		BN_bn2bin(k->rsa->n, blob);
 		BN_bn2bin(k->rsa->e, blob + nlen);
-		break;
-	case KEY_DSA_CERT_V00:
-	case KEY_RSA_CERT_V00:
-	case KEY_DSA_CERT:
-	case KEY_ECDSA_CERT:
-	case KEY_RSA_CERT:
-	case KEY_ED25519_CERT:
-		/* We want a fingerprint of the _key_ not of the cert */
-		force_plain = 1;
-		/* FALLTHROUGH */
-	case KEY_DSA:
-	case KEY_ECDSA:
-	case KEY_RSA:
-	case KEY_ED25519:
-		if (to_blob(k, &blob, &len, force_plain) == -1)
-			return NULL;
-		break;
-	case KEY_UNSPEC:
-	default:
-		return NULL;
+	} else if ((r = to_blob(k, &blob, &blob_len, force_plain)) != 0)
+		goto out;
+	if ((ret = calloc(1, SSH_DIGEST_MAX_LENGTH)) == NULL) {
+		r = SSH_ERR_ALLOC_FAIL;
+		goto out;
 	}
-	if ((retval = malloc(EVP_MAX_MD_SIZE)) == NULL) {
-		explicit_bzero(blob, len);
+	if ((r = ssh_digest_memory(hash_alg, blob, blob_len,
+	    ret, SSH_DIGEST_MAX_LENGTH)) != 0)
+		goto out;
+	/* success */
+	if (retp != NULL) {
+		*retp = ret;
+		ret = NULL;
+	}
+	if (lenp != NULL)
+		*lenp = ssh_digest_bytes(hash_alg);
+	r = 0;
+ out:
+	free(ret);
+	if (blob != NULL) {
+		explicit_bzero(blob, blob_len);
 		free(blob);
-		return NULL;
 	}
-	EVP_DigestInit(&ctx, md);
-	EVP_DigestUpdate(&ctx, blob, len);
-	EVP_DigestFinal(&ctx, retval, &dlen);
-	*dgst_raw_length = dlen;
-	explicit_bzero(blob, len);
-	free(blob);
-	return retval;
+	return r;
 }
 
 static char *
@@ -993,8 +1008,7 @@ sshkey_fingerprint(const struct sshkey *k, enum sshkey_fp_type dgst_type,
 	u_char *dgst_raw;
 	size_t dgst_raw_len;
 
-	if ((dgst_raw = sshkey_fingerprint_raw(k, dgst_type,
-	    &dgst_raw_len)) == NULL)
+	if (sshkey_fingerprint_raw(k, dgst_type, &dgst_raw, &dgst_raw_len) != 0)
 		return NULL;
 	switch (dgst_rep) {
 	case SSH_FP_HEX:

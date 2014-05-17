@@ -388,10 +388,11 @@ ssh_krl_revoke_key_sha1(struct ssh_krl *krl, const struct sshkey *key)
 {
 	u_char *blob;
 	size_t len;
+	int r;
 
 	debug3("%s: revoke type %s by sha1", __func__, sshkey_type(key));
-	if ((blob = sshkey_fingerprint_raw(key, SSH_FP_SHA1, &len)) == NULL)
-		return SSH_ERR_ALLOC_FAIL;
+	if ((r = sshkey_fingerprint_raw(key, SSH_FP_SHA1, &blob, &len)) != 0)
+		return r;
 	return revoke_blob(&krl->revoked_sha1s, blob, len);
 }
 
@@ -1081,8 +1082,9 @@ is_key_revoked(struct ssh_krl *krl, const struct sshkey *key)
 
 	/* Check explicitly revoked hashes first */
 	bzero(&rb, sizeof(rb));
-	if ((rb.blob = sshkey_fingerprint_raw(key, SSH_FP_SHA1, &rb.len)) == NULL)
-		return SSH_ERR_ALLOC_FAIL;
+	if ((r = sshkey_fingerprint_raw(key, SSH_FP_SHA1,
+	    &rb.blob, &rb.len)) != 0)
+		return r;
 	erb = RB_FIND(revoked_blob_tree, &krl->revoked_sha1s, &rb);
 	free(rb.blob);
 	if (erb != NULL) {

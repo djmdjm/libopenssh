@@ -121,8 +121,8 @@ int		 sshkey_equal_public(const struct sshkey *,
 int		 sshkey_equal(const struct sshkey *, const struct sshkey *);
 char		*sshkey_fingerprint(const struct sshkey *,
     enum sshkey_fp_type, enum sshkey_fp_rep);
-u_char		*sshkey_fingerprint_raw(const struct sshkey *,
-    enum sshkey_fp_type, size_t *);
+int		 sshkey_fingerprint_raw(const struct sshkey *k,
+    enum sshkey_fp_type dgst_type, u_char **retp, size_t *lenp);
 const char	*sshkey_type(const struct sshkey *);
 const char	*sshkey_cert_type(const struct sshkey *);
 int		 sshkey_write(const struct sshkey *, FILE *);
@@ -149,7 +149,9 @@ const char *	 sshkey_curve_nid_to_name(int);
 u_int		 sshkey_curve_nid_to_bits(int);
 int		 sshkey_ecdsa_bits_to_nid(int);
 int		 sshkey_ecdsa_key_to_nid(EC_KEY *);
-const EVP_MD *	 sshkey_ec_nid_to_evpmd(int nid);
+int		 sshkey_ec_nid_to_hash_alg(int nid);
+/* XXX remove */
+const EVP_MD	*sshkey_ec_nid_to_evpmd(int nid);
 int		 sshkey_ec_validate_public(const EC_GROUP *, const EC_POINT *);
 int		 sshkey_ec_validate_private(const EC_KEY *);
 const char	*sshkey_ssh_name(const struct sshkey *);

@@ -110,9 +110,9 @@ dns_read_key(u_int8_t *algorithm, u_int8_t *digest_type,
 	}
 
 	if (*algorithm && *digest_type) {
-		*digest = sshkey_fingerprint_raw(key, fp_type, digest_len);
-		if (*digest == NULL)
-			fatal("%s: null from sshkey_fingerprint_raw", __func__);
+		if (sshkey_fingerprint_raw(key, fp_type,
+		    digest, digest_len) != 0)
+			fatal("%s: sshkey_fingerprint_raw failed", __func__);
 		success = 1;
 	} else {
 		*digest = NULL;

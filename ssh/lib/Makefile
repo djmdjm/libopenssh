@@ -13,6 +13,7 @@ SRCS=	authfd.c authfile.c canohost.c \
 	kexdhc.c kexgexc.c kexecdhc.c msg.c progressmeter.c dns.c \
 	monitor_fdpass.c umac.c addrmatch.c schnorr.c jpake.c ssh-pkcs11.c \
 	krl.c ssh-ed25519.c chacha.c poly1305.c cipher-chachapoly.c \
+	mac.c digest-openssl.c \
 	sshbuf-getput-basic.c \
 	sshbuf-getput-crypto.c \
 	sshbuf-misc.c \
