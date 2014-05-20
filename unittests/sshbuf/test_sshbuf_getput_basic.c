@@ -1,4 +1,4 @@
-/* 	$OpenBSD$ */
+/* 	$OpenBSD: test_sshbuf_getput_basic.c,v 1.1 2014/04/30 05:32:00 djm Exp $ */
 /*
  * Regress test for sshbuf.h buffer API
  *
@@ -13,7 +13,7 @@
 #include <string.h>
 
 #include "test_helper.h"
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 
 void sshbuf_getput_basic_tests(void);

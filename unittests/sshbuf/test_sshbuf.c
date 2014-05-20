@@ -1,4 +1,4 @@
-/* 	$OpenBSD$ */
+/* 	$OpenBSD: test_sshbuf.c,v 1.1 2014/04/30 05:32:00 djm Exp $ */
 /*
  * Regress test for sshbuf.h buffer API
  *
@@ -14,7 +14,7 @@
 
 #include "test_helper.h"
 
-#include "err.h"
+#include "ssherr.h"
 #define SSHBUF_INTERNAL 1	/* access internals for testing */
 #include "sshbuf.h"
 

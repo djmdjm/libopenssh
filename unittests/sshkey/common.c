@@ -23,9 +23,9 @@
 
 #include "test_helper.h"
 
-#include "err.h"
+#include "ssherr.h"
 #include "authfile.h"
-#include "key.h"
+#include "sshkey.h"
 #include "sshbuf.h"
 
 #include "common.h"
