@@ -31,7 +31,7 @@
 #include "xmalloc.h"
 #include "cipher.h"
 #include "sshbuf.h"
-#include "err.h"
+#include "ssherr.h"
 #include "roaming.h"
 
 static size_t out_buf_size = 0;

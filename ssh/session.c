@@ -63,7 +63,7 @@
 #include "uidswap.h"
 #include "compat.h"
 #include "channels.h"
-#include "key.h"
+#include "sshkey.h"
 #include "cipher.h"
 #include "kex.h"
 #include "hostfile.h"
@@ -83,7 +83,7 @@
 #endif
 #include "monitor_wrap.h"
 #include "sftp.h"
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 
 #ifdef KRB5

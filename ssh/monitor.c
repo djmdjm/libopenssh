@@ -46,7 +46,7 @@
 #include "atomicio.h"
 #include "xmalloc.h"
 #include "ssh.h"
-#include "key.h"
+#include "sshkey.h"
 #include "sshbuf.h"
 #include "hostfile.h"
 #include "auth.h"
@@ -75,7 +75,7 @@
 #include "ssh2.h"
 #include "jpake.h"
 #include "roaming.h"
-#include "err.h"
+#include "ssherr.h"
 #include "authfd.h"
 
 #ifdef GSSAPI

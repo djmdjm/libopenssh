@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-ed25519.c,v 1.1 2013/12/06 13:39:49 markus Exp $ */
+/* $OpenBSD: ssh-ed25519.c,v 1.3 2014/02/23 20:03:42 djm Exp $ */
 /*
  * Copyright (c) 2013 Markus Friedl <markus@openbsd.org>
  *
@@ -16,6 +16,7 @@
  */
 #define SSHKEY_INTERNAL
 #include <sys/types.h>
+#include <limits.h>
 
 #include "crypto_api.h"
 
@@ -25,8 +26,8 @@
 #include "xmalloc.h"
 #include "log.h"
 #include "buffer.h"
-#include "key.h"
-#include "err.h"
+#include "sshkey.h"
+#include "ssherr.h"
 #include "ssh.h"
 
 int
@@ -47,7 +48,7 @@ ssh_ed25519_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	if (key == NULL ||
 	    sshkey_type_plain(key->type) != KEY_ED25519 ||
 	    key->ed25519_sk == NULL ||
-	    SIZE_MAX - datalen <= crypto_sign_ed25519_BYTES)
+	    datalen >= INT_MAX - crypto_sign_ed25519_BYTES)
 		return SSH_ERR_INVALID_ARGUMENT;
 	smlen = slen = datalen + crypto_sign_ed25519_BYTES;
 	if ((sig = malloc(slen)) == NULL)
@@ -104,7 +105,7 @@ ssh_ed25519_verify(const struct sshkey *key,
 	if (key == NULL ||
 	    sshkey_type_plain(key->type) != KEY_ED25519 ||
 	    key->ed25519_pk == NULL ||
-	    SIZE_MAX - datalen <= crypto_sign_ed25519_BYTES)
+	    datalen >= INT_MAX - crypto_sign_ed25519_BYTES)
 		return SSH_ERR_INVALID_ARGUMENT;
 
 	if ((b = sshbuf_from(signature, signaturelen)) == NULL)

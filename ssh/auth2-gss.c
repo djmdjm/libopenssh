@@ -29,14 +29,14 @@
 #include <sys/types.h>
 
 #include "xmalloc.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #include "ssh2.h"
 #include "log.h"
 #include "dispatch.h"
 #include "sshbuf.h"
-#include "err.h"
+#include "ssherr.h"
 #include "servconf.h"
 #include "packet.h"
 #include "ssh-gss.h"

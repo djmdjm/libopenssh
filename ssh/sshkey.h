@@ -1,4 +1,4 @@
-/* $OpenBSD: key.h,v 1.40 2013/12/06 13:39:49 markus Exp $ */
+/* $OpenBSD$ */
 
 /*
  * Copyright (c) 2000, 2001 Markus Friedl.  All rights reserved.
@@ -23,26 +23,25 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef KEY_H
-#define KEY_H
+#ifndef SSHKEY_H
+#define SSHKEY_H
 
 #include <sys/types.h>
 
+#ifdef WITH_OPENSSL
 #include <openssl/rsa.h>
 #include <openssl/dsa.h>
 #include <openssl/ec.h>
-
-#ifdef WITH_LEAKMALLOC
-#include "leakmalloc.h"
-#endif
+#else /* OPENSSL */
+#define RSA		void
+#define DSA		void
+#define EC_KEY		void
+#define EC_GROUP	void
+#define EC_POINT	void
+#endif /* WITH_OPENSSL */
 
 #define SSH_RSA_MINIMUM_MODULUS_SIZE	768
 #define SSH_KEY_MAX_SIGN_DATA_SIZE	(1 << 20)
-
-/* XXX compat, remove when we can */
-#define types sshkey_types
-#define fp_type sshkey_fp_type
-#define fp_rep sshkey_fp_rep
 
 struct sshbuf;
 
@@ -63,7 +62,6 @@ enum sshkey_types {
 };
 
 /* Fingerprint hash algorithms */
-/* XXX add SHA256 */
 enum sshkey_fp_type {
 	SSH_FP_SHA1,
 	SSH_FP_MD5,
@@ -150,8 +148,6 @@ u_int		 sshkey_curve_nid_to_bits(int);
 int		 sshkey_ecdsa_bits_to_nid(int);
 int		 sshkey_ecdsa_key_to_nid(EC_KEY *);
 int		 sshkey_ec_nid_to_hash_alg(int nid);
-/* XXX remove */
-const EVP_MD	*sshkey_ec_nid_to_evpmd(int nid);
 int		 sshkey_ec_validate_public(const EC_GROUP *, const EC_POINT *);
 int		 sshkey_ec_validate_private(const EC_KEY *);
 const char	*sshkey_ssh_name(const struct sshkey *);
@@ -175,6 +171,10 @@ void	sshkey_dump_ec_point(const EC_GROUP *, const EC_POINT *);
 void	sshkey_dump_ec_key(const EC_KEY *);
 
 /* private key parsing and serialisation */
+int	sshkey_private_serialize(const struct sshkey *key, struct sshbuf *buf);
+int	sshkey_private_deserialize(struct sshbuf *buf,  struct sshkey **keyp);
+
+/* private key file format parsing and serialisation */
 int	sshkey_private_to_fileblob(struct sshkey *key, struct sshbuf *blob,
     const char *passphrase, const char *comment,
     int force_new_format, const char *new_format_cipher, int new_format_rounds);
@@ -211,7 +211,12 @@ int ssh_ed25519_verify(const struct sshkey *key,
     const u_char *data, size_t datalen, u_int compat);
 #endif
 
-int	sshkey_private_serialize(const struct sshkey *key, struct sshbuf *buf);
-int	sshkey_private_deserialize(struct sshbuf *buf,  struct sshkey **keyp);
+#ifndef WITH_OPENSSL
+#undef RSA
+#undef DSA
+#undef EC_KEY
+#undef EC_GROUP
+#undef EC_POINT
+#endif /* WITH_OPENSSL */
 
-#endif
+#endif /* SSHKEY_H */

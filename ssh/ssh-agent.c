@@ -61,12 +61,12 @@
 #include "rsa.h"
 #include "sshbuf.h"
 #include "sshbuf.h"
-#include "key.h"
+#include "sshkey.h"
 #include "authfd.h"
 #include "compat.h"
 #include "log.h"
 #include "misc.h"
-#include "err.h"
+#include "ssherr.h"
 
 #ifdef ENABLE_PKCS11
 #include "ssh-pkcs11.h"

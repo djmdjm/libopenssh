@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-rsa.c,v 1.46 2013/05/17 00:13:14 djm Exp $ */
+/* $OpenBSD: ssh-rsa.c,v 1.51 2014/02/02 03:44:31 djm Exp $ */
 /*
  * Copyright (c) 2000, 2003 Markus Friedl <markus@openbsd.org>
  *
@@ -24,9 +24,10 @@
 
 #include "sshbuf.h"
 #include "compat.h"
-#include "err.h"
+#include "ssherr.h"
 #define SSHKEY_INTERNAL
-#include "key.h"
+#include "sshkey.h"
+#include "digest.h"
 
 static int openssh_RSA_verify(int, u_char *, size_t, u_char *, size_t, RSA *);
 
@@ -35,9 +36,8 @@ int
 ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
     const u_char *data, size_t datalen, u_int compat)
 {
-	const EVP_MD *evp_md;
-	EVP_MD_CTX md;
-	u_char digest[EVP_MAX_MD_SIZE], *sig = NULL;
+	int hash_alg;
+	u_char digest[SSH_DIGEST_MAX_LENGTH], *sig = NULL;
 	size_t slen;
 	u_int dlen, len;
 	int nid, ret = SSH_ERR_INTERNAL_ERROR;
@@ -48,22 +48,22 @@ ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	if (sigp != NULL)
 		*sigp = NULL;
 
-	if (key == NULL || key->rsa == NULL || (key->type != KEY_RSA &&
-	    key->type != KEY_RSA_CERT && key->type != KEY_RSA_CERT_V00))
+	if (key == NULL || key->rsa == NULL ||
+	    sshkey_type_plain(key->type) != KEY_RSA)
 		return SSH_ERR_INVALID_ARGUMENT;
 	slen = RSA_size(key->rsa);
 	if (slen <= 0 || slen > SSHBUF_MAX_BIGNUM)
 		return SSH_ERR_INVALID_ARGUMENT;
 
-	nid = (compat & SSH_BUG_RSASIGMD5) ? NID_md5 : NID_sha1;
-	if ((evp_md = EVP_get_digestbynid(nid)) == NULL)
-		return SSH_ERR_LIBCRYPTO_ERROR;
-	if (EVP_DigestInit(&md, evp_md) != 1 ||
-	    EVP_DigestUpdate(&md, data, datalen) != 1 ||
-	    EVP_DigestFinal(&md, digest, &dlen) != 1) {
-		ret = SSH_ERR_LIBCRYPTO_ERROR;
+	/* hash the data */
+	hash_alg = SSH_DIGEST_SHA1;
+	nid = NID_sha1;
+	if ((dlen = ssh_digest_bytes(hash_alg)) == 0)
+		return SSH_ERR_INTERNAL_ERROR;
+	if ((ret = ssh_digest_memory(hash_alg, data, datalen,
+	    digest, sizeof(digest))) != 0)
 		goto out;
-	}
+
 	if ((sig = malloc(slen)) == NULL) {
 		ret = SSH_ERR_ALLOC_FAIL;
 		goto out;
@@ -102,7 +102,6 @@ ssh_rsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 	ret = 0;
  out:
 	explicit_bzero(digest, sizeof(digest));
-	explicit_bzero(&md, sizeof(md));
 	if (sig != NULL) {
 		explicit_bzero(sig, slen);
 		free(sig);
@@ -117,17 +116,14 @@ ssh_rsa_verify(const struct sshkey *key,
     const u_char *signature, size_t signaturelen,
     const u_char *data, size_t datalen, u_int compat)
 {
-	struct sshbuf *b = NULL;
-	const EVP_MD *evp_md;
-	EVP_MD_CTX md;
 	char *ktype = NULL;
-	u_char digest[EVP_MAX_MD_SIZE], *osigblob, *sigblob = NULL;
-	size_t len, diff, modlen;
-	u_int dlen;
-	int nid, ret = SSH_ERR_INTERNAL_ERROR;
+	int hash_alg, ret = SSH_ERR_INTERNAL_ERROR;
+	size_t len, diff, modlen, dlen;
+	struct sshbuf *b = NULL;
+	u_char digest[SSH_DIGEST_MAX_LENGTH], *osigblob, *sigblob = NULL;
 
-	if (key == NULL || key->rsa == NULL || (key->type != KEY_RSA &&
-	    key->type != KEY_RSA_CERT && key->type != KEY_RSA_CERT_V00) ||
+	if (key == NULL || key->rsa == NULL ||
+	    sshkey_type_plain(key->type) != KEY_RSA ||
 	    BN_num_bits(key->rsa->n) < SSH_RSA_MINIMUM_MODULUS_SIZE)
 		return SSH_ERR_INVALID_ARGUMENT;
 
@@ -158,8 +154,7 @@ ssh_rsa_verify(const struct sshkey *key,
 		diff = modlen - len;
 		osigblob = sigblob;
 		if ((sigblob = realloc(sigblob, modlen)) == NULL) {
-			explicit_bzero(osigblob, len);
-			free(osigblob);
+			sigblob = osigblob; /* put it back for clear/free */
 			ret = SSH_ERR_ALLOC_FAIL;
 			goto out;
 		}
@@ -167,19 +162,17 @@ ssh_rsa_verify(const struct sshkey *key,
 		explicit_bzero(sigblob, diff);
 		len = modlen;
 	}
-	nid = (compat & SSH_BUG_RSASIGMD5) ? NID_md5 : NID_sha1;
-	if ((evp_md = EVP_get_digestbynid(nid)) == NULL) {
-		ret = SSH_ERR_LIBCRYPTO_ERROR;
+	hash_alg = SSH_DIGEST_SHA1;
+	if ((dlen = ssh_digest_bytes(hash_alg)) == 0) {
+		ret = SSH_ERR_INTERNAL_ERROR;
 		goto out;
 	}
-	if (EVP_DigestInit(&md, evp_md) != 1 ||
-	    EVP_DigestUpdate(&md, data, datalen) != 1 ||
-	    EVP_DigestFinal(&md, digest, &dlen) != 1) {
-		ret = SSH_ERR_LIBCRYPTO_ERROR;
+	if ((ret = ssh_digest_memory(hash_alg, data, datalen,
+	    digest, sizeof(digest))) != 0)
 		goto out;
-	}
 
-	ret = openssh_RSA_verify(nid, digest, dlen, sigblob, len, key->rsa);
+	ret = openssh_RSA_verify(hash_alg, digest, dlen, sigblob, len,
+	    key->rsa);
  out:
 	if (sigblob != NULL) {
 		explicit_bzero(sigblob, len);
@@ -190,7 +183,6 @@ ssh_rsa_verify(const struct sshkey *key,
 	if (b != NULL)
 		sshbuf_free(b);
 	explicit_bzero(digest, sizeof(digest));
-	explicit_bzero(&md, sizeof(md));
 	return ret;
 }
 
@@ -225,7 +217,7 @@ static const u_char id_md5[] = {
 };
 
 static int
-openssh_RSA_verify(int type, u_char *hash, size_t hashlen,
+openssh_RSA_verify(int hash_alg, u_char *hash, size_t hashlen,
     u_char *sigbuf, size_t siglen, RSA *rsa)
 {
 	size_t ret, rsasize = 0, oidlen = 0, hlen = 0;
@@ -234,16 +226,11 @@ openssh_RSA_verify(int type, u_char *hash, size_t hashlen,
 	u_char *decrypted = NULL;
 
 	ret = SSH_ERR_INTERNAL_ERROR;
-	switch (type) {
-	case NID_sha1:
+	switch (hash_alg) {
+	case SSH_DIGEST_SHA1:
 		oid = id_sha1;
 		oidlen = sizeof(id_sha1);
 		hlen = 20;
-		break;
-	case NID_md5:
-		oid = id_md5;
-		oidlen = sizeof(id_md5);
-		hlen = 16;
 		break;
 	default:
 		goto done;

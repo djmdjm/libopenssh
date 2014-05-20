@@ -33,7 +33,7 @@
 #include <string.h>
 
 #include "xmalloc.h"
-#include "key.h"
+#include "sshkey.h"
 #include "dns.h"
 #include "log.h"
 
@@ -75,7 +75,7 @@ dns_read_key(u_int8_t *algorithm, u_int8_t *digest_type,
     u_char **digest, size_t *digest_len, struct sshkey *key)
 {
 	int success = 0;
-	enum fp_type fp_type = 0;
+	enum sshkey_fp_type fp_type = 0;
 
 	switch (key->type) {
 	case KEY_RSA:

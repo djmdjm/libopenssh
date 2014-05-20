@@ -29,7 +29,7 @@
 
 #include "xmalloc.h"
 #include "sshbuf.h"
-#include "err.h"
+#include "ssherr.h"
 #include "channels.h"
 #include "cipher.h"
 #include "dispatch.h"
@@ -39,13 +39,13 @@
 #include "misc.h"
 #include "packet.h"
 #include "ssh.h"
-#include "key.h"
+#include "sshkey.h"
 #include "kex.h"
 #include "readconf.h"
 #include "roaming.h"
 #include "ssh2.h"
 #include "sshconnect.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* import */
 extern Options options;

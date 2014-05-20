@@ -80,7 +80,7 @@
 #include "uidswap.h"
 #include "compat.h"
 #include "cipher.h"
-#include "key.h"
+#include "sshkey.h"
 #include "kex.h"
 #include "dh.h"
 #include "myproposal.h"
@@ -105,7 +105,7 @@
 #include "roaming.h"
 #include "ssh-sandbox.h"
 #include "version.h"
-#include "err.h"
+#include "ssherr.h"
 
 #ifdef LIBWRAP
 #include <tcpd.h>

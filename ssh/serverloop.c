@@ -63,7 +63,7 @@
 #include "compat.h"
 #include "ssh1.h"
 #include "ssh2.h"
-#include "key.h"
+#include "sshkey.h"
 #include "cipher.h"
 #include "kex.h"
 #include "hostfile.h"
@@ -74,7 +74,7 @@
 #include "serverloop.h"
 #include "misc.h"
 #include "roaming.h"
-#include "err.h"
+#include "ssherr.h"
 
 extern ServerOptions options;
 

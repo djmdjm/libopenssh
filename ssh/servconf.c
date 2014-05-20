@@ -40,7 +40,7 @@
 #include "pathnames.h"
 #include "misc.h"
 #include "cipher.h"
-#include "key.h"
+#include "sshkey.h"
 #include "kex.h"
 #include "mac.h"
 #include "match.h"
@@ -48,7 +48,7 @@
 #include "groupaccess.h"
 #include "canohost.h"
 #include "packet.h"
-#include "err.h"
+#include "ssherr.h"
 #include "hostfile.h"
 #include "auth.h"
 

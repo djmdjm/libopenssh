@@ -24,7 +24,7 @@
 
 #include "sshbuf.h"
 #include "digest.h"
-#include "err.h"
+#include "ssherr.h"
 
 struct ssh_digest_ctx {
 	int alg;
@@ -122,9 +122,9 @@ ssh_digest_final(struct ssh_digest_ctx *ctx, u_char *d, size_t dlen)
 	u_int l = dlen;
 
 	if (dlen > UINT_MAX)
-		return SSH_ERR_LIBCRYPTO_ERROR;
+		return SSH_ERR_INVALID_ARGUMENT;
 	if (dlen < digest->digest_len) /* No truncation allowed */
-		return SSH_ERR_LIBCRYPTO_ERROR;
+		return SSH_ERR_INVALID_ARGUMENT;
 	if (EVP_DigestFinal_ex(&ctx->mdctx, d, &l) != 1)
 		return SSH_ERR_LIBCRYPTO_ERROR;
 	if (l != digest->digest_len) /* sanity */
@@ -146,12 +146,13 @@ int
 ssh_digest_memory(int alg, const void *m, size_t mlen, u_char *d, size_t dlen)
 {
 	struct ssh_digest_ctx *ctx = ssh_digest_start(alg);
+	int r;
 
 	if (ctx == NULL)
 		return SSH_ERR_INVALID_ARGUMENT;
-	if (ssh_digest_update(ctx, m, mlen) != 0 ||
-	    ssh_digest_final(ctx, d, dlen) != 0)
-		return SSH_ERR_INVALID_ARGUMENT;
+	if ((r = ssh_digest_update(ctx, m, mlen) != 0) ||
+	    (r = ssh_digest_final(ctx, d, dlen) != 0))
+		return r;
 	ssh_digest_free(ctx);
 	return 0;
 }

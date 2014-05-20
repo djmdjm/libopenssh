@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "err.h"
+#include "ssherr.h"
 #define SSHBUF_INTERNAL
 #include "sshbuf.h"
 

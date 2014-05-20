@@ -36,7 +36,7 @@
 
 #include "xmalloc.h"
 #include "sshbuf.h"
-#include "err.h"
+#include "ssherr.h"
 #include "log.h"
 
 #include "schnorr.h"

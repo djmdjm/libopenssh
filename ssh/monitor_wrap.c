@@ -44,7 +44,7 @@
 #include "ssh.h"
 #include "dh.h"
 #include "sshbuf.h"
-#include "key.h"
+#include "sshkey.h"
 #include "cipher.h"
 #include "kex.h"
 #include "hostfile.h"
@@ -70,7 +70,7 @@
 #include "session.h"
 #include "servconf.h"
 #include "roaming.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* Imports */
 extern int compat20;

@@ -29,11 +29,11 @@
 #include "sshbuf.h"
 #include "log.h"
 #include "misc.h"
-#include "key.h"
+#include "sshkey.h"
 #include "authfd.h"
 #include "atomicio.h"
 #include "ssh-pkcs11.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* borrows code from sftp-server and ssh-agent */
 

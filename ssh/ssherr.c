@@ -17,7 +17,7 @@
 
 #include <errno.h>
 #include <string.h>
-#include "err.h"
+#include "ssherr.h"
 
 const char *
 ssh_err(int n)

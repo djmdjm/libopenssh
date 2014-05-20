@@ -35,11 +35,11 @@
 #include <openssl/ecdh.h>
 
 #include "ssh2.h"
-#include "key.h"
+#include "sshkey.h"
 #include "cipher.h"
 #include "kex.h"
 #include "log.h"
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 
 int

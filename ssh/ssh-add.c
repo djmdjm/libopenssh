@@ -53,13 +53,13 @@
 #include "ssh.h"
 #include "rsa.h"
 #include "log.h"
-#include "key.h"
+#include "sshkey.h"
 #include "sshbuf.h"
 #include "authfd.h"
 #include "authfile.h"
 #include "pathnames.h"
 #include "misc.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* argv0 */
 extern char *__progname;

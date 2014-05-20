@@ -40,7 +40,7 @@
 #include "packet.h"
 #include "uidswap.h"
 #include "compat.h"
-#include "key.h"
+#include "sshkey.h"
 #include "sshconnect.h"
 #include "hostfile.h"
 #include "log.h"
@@ -52,7 +52,7 @@
 #include "monitor_fdpass.h"
 #include "ssh2.h"
 #include "version.h"
-#include "err.h"
+#include "ssherr.h"
 
 char *client_version_string = NULL;
 char *server_version_string = NULL;

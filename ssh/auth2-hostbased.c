@@ -37,7 +37,7 @@
 #include "log.h"
 #include "servconf.h"
 #include "compat.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #include "canohost.h"
@@ -46,7 +46,7 @@
 #endif
 #include "monitor_wrap.h"
 #include "pathnames.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* import */
 extern ServerOptions options;

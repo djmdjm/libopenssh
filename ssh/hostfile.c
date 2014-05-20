@@ -50,11 +50,11 @@
 
 #include "xmalloc.h"
 #include "match.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "log.h"
 #include "misc.h"
-#include "err.h"
+#include "ssherr.h"
 
 struct hostkeys {
 	struct hostkey_entry *entries;

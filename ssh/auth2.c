@@ -42,7 +42,7 @@
 #include "sshbuf.h"
 #include "servconf.h"
 #include "compat.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #include "dispatch.h"
@@ -51,7 +51,7 @@
 #include "ssh-gss.h"
 #endif
 #include "monitor_wrap.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* import */
 extern ServerOptions options;

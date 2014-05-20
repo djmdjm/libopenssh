@@ -1,4 +1,4 @@
-/* $OpenBSD: ssh-ecdsa.c,v 1.6 2013/05/17 00:13:14 djm Exp $ */
+/* $OpenBSD: ssh-ecdsa.c,v 1.10 2014/02/03 23:28:00 djm Exp $ */
 /*
  * Copyright (c) 2000 Markus Friedl.  All rights reserved.
  * Copyright (c) 2010 Damien Miller.  All rights reserved.
@@ -34,9 +34,10 @@
 #include <string.h>
 
 #include "sshbuf.h"
-#include "err.h"
+#include "ssherr.h"
+#include "digest.h"
 #define SSHKEY_INTERNAL
-#include "key.h"
+#include "sshkey.h"
 
 /* ARGSUSED */
 int
@@ -44,11 +45,9 @@ ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
     const u_char *data, size_t datalen, u_int compat)
 {
 	ECDSA_SIG *sig = NULL;
-	const EVP_MD *evp_md;
-	EVP_MD_CTX md;
-	u_char digest[EVP_MAX_MD_SIZE];
-	size_t len;
-	u_int dlen;
+	int hash_alg;
+	u_char digest[SSH_DIGEST_MAX_LENGTH];
+	size_t len, dlen;
 	struct sshbuf *b = NULL, *bb = NULL;
 	int ret = SSH_ERR_INTERNAL_ERROR;
 
@@ -58,18 +57,15 @@ ssh_ecdsa_sign(const struct sshkey *key, u_char **sigp, size_t *lenp,
 		*sigp = NULL;
 
 	if (key == NULL || key->ecdsa == NULL ||
-	    (key->type != KEY_ECDSA && key->type != KEY_ECDSA_CERT))
+	    sshkey_type_plain(key->type) != KEY_ECDSA)
 		return SSH_ERR_INVALID_ARGUMENT;
 
-	if ((evp_md = sshkey_ec_nid_to_evpmd(key->ecdsa_nid)) == NULL)
-		return SSH_ERR_INVALID_ARGUMENT;
-	if (EVP_DigestInit(&md, evp_md) != 1 ||
-	    EVP_DigestUpdate(&md, data, datalen) != 1 ||
-	    EVP_DigestFinal(&md, digest, &dlen) != 1) {
-		explicit_bzero(&md, sizeof(md));
-		return SSH_ERR_LIBCRYPTO_ERROR;
-	}
-	explicit_bzero(&md, sizeof(md));
+	if ((hash_alg = sshkey_ec_nid_to_hash_alg(key->ecdsa_nid)) == -1 ||
+	    (dlen = ssh_digest_bytes(hash_alg)) == 0)
+		return SSH_ERR_INTERNAL_ERROR;
+	if ((ret = ssh_digest_memory(hash_alg, data, datalen,
+	    digest, sizeof(digest))) != 0)
+		goto out;
 
 	if ((sig = ECDSA_do_sign(digest, dlen, key->ecdsa)) == NULL) {
 		ret = SSH_ERR_LIBCRYPTO_ERROR;
@@ -115,18 +111,19 @@ ssh_ecdsa_verify(const struct sshkey *key,
     const u_char *data, size_t datalen, u_int compat)
 {
 	ECDSA_SIG *sig = NULL;
-	const EVP_MD *evp_md;
-	EVP_MD_CTX md;
-	u_char digest[EVP_MAX_MD_SIZE];
-	u_int dlen;
+	int hash_alg;
+	u_char digest[SSH_DIGEST_MAX_LENGTH];
+	size_t dlen;
 	int ret = SSH_ERR_INTERNAL_ERROR;
 	struct sshbuf *b = NULL, *sigbuf = NULL;
 	char *ktype = NULL;
 
 	if (key == NULL || key->ecdsa == NULL ||
-	    (key->type != KEY_ECDSA && key->type != KEY_ECDSA_CERT))
-		return SSH_ERR_INTERNAL_ERROR;
-	if ((evp_md = sshkey_ec_nid_to_evpmd(key->ecdsa_nid)) == NULL)
+	    sshkey_type_plain(key->type) != KEY_ECDSA)
+		return SSH_ERR_INVALID_ARGUMENT;
+
+	if ((hash_alg = sshkey_ec_nid_to_hash_alg(key->ecdsa_nid)) == -1 ||
+	    (dlen = ssh_digest_bytes(hash_alg)) == 0)
 		return SSH_ERR_INTERNAL_ERROR;
 
 	/* fetch signature */
@@ -147,9 +144,7 @@ ssh_ecdsa_verify(const struct sshkey *key,
 	}
 
 	/* parse signature */
-	if ((sig = ECDSA_SIG_new()) == NULL ||
-	    (sig->r = BN_new()) == NULL ||
-	    (sig->s = BN_new()) == NULL) {
+	if ((sig = ECDSA_SIG_new()) == NULL) {
 		ret = SSH_ERR_ALLOC_FAIL;
 		goto out;
 	}
@@ -162,13 +157,9 @@ ssh_ecdsa_verify(const struct sshkey *key,
 		ret = SSH_ERR_UNEXPECTED_TRAILING_DATA;
 		goto out;
 	}
-	/* hash the data */
-	if (EVP_DigestInit(&md, evp_md) != 1 ||
-	    EVP_DigestUpdate(&md, data, datalen) != 1 ||
-	    EVP_DigestFinal(&md, digest, &dlen) != 1) {
-		ret = SSH_ERR_LIBCRYPTO_ERROR;
+	if ((ret = ssh_digest_memory(hash_alg, data, datalen,
+	    digest, sizeof(digest))) != 0)
 		goto out;
-	}
 
 	switch (ECDSA_do_verify(digest, dlen, sig, key->ecdsa)) {
 	case 1:

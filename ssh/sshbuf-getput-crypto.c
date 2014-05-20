@@ -23,7 +23,7 @@
 #include <openssl/bn.h>
 #include <openssl/ec.h>
 
-#include "err.h"
+#include "ssherr.h"
 #define SSHBUF_INTERNAL
 #include "sshbuf.h"
 

@@ -31,13 +31,13 @@
 
 #include "xmalloc.h"
 #include "ssh2.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #include "sshbuf.h"
 #include "packet.h"
 #include "dispatch.h"
-#include "err.h"
+#include "ssherr.h"
 #include "log.h"
 
 static int auth2_challenge_start(struct ssh *);

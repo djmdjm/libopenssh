@@ -29,8 +29,8 @@
 #include <unistd.h>
 
 #include "sshbuf.h"
-#include "err.h"
-#include "key.h"
+#include "ssherr.h"
+#include "sshkey.h"
 #include "authfile.h"
 #include "misc.h"
 #include "log.h"

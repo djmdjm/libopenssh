@@ -54,14 +54,14 @@
 #include "ssh.h"
 #include "rsa.h"
 #include "sshbuf.h"
-#include "key.h"
+#include "sshkey.h"
 #include "authfd.h"
 #include "cipher.h"
 #include "compat.h"
 #include "log.h"
 #include "atomicio.h"
 #include "misc.h"
-#include "err.h"
+#include "ssherr.h"
 
 #define MAX_AGENT_IDENTITIES	2048		/* Max keys in agent reply */
 #define MAX_AGENT_REPLY_LEN	(256 * 1024) 	/* Max bytes in agent reply */

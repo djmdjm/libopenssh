@@ -8,7 +8,7 @@ SRCS=	authfd.c authfile.c canohost.c \
 	cleanup.c compat.c crc32.c deattack.c fatal.c \
 	hostfile.c log.c match.c nchan.c packet.c readpass.c \
 	rsa.c ttymodes.c xmalloc.c atomicio.c \
-	key.c dispatch.c kex.c mac.c uidswap.c uuencode.c misc.c \
+	dispatch.c kex.c mac.c uidswap.c uuencode.c misc.c \
 	ssh-dss.c ssh-rsa.c ssh-ecdsa.c dh.c kexdh.c kexgex.c kexecdh.c \
 	kexdhc.c kexgexc.c kexecdhc.c msg.c progressmeter.c dns.c \
 	monitor_fdpass.c umac.c addrmatch.c schnorr.c jpake.c ssh-pkcs11.c \
@@ -18,7 +18,8 @@ SRCS=	authfd.c authfile.c canohost.c \
 	sshbuf-getput-crypto.c \
 	sshbuf-misc.c \
 	sshbuf.c \
-	err.c
+	ssherr.c \
+	sshkey.c
 
 # ed25519, from supercop
 SRCS+=	sc25519.c ge25519.c fe25519.c ed25519.c verify.c hash.c blocks.c

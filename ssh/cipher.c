@@ -45,6 +45,7 @@
 #include "cipher.h"
 #include "misc.h"
 #include "sshbuf.h"
+#include "ssherr.h"
 #include "digest.h"
 
 #ifdef WITH_SSH1
@@ -119,7 +120,7 @@ static const struct sshcipher ciphers[] = {
 char *
 cipher_alg_list(char sep, int auth_only)
 {
-	char *ret = NULL;
+	char *tmp, *ret = NULL;
 	size_t nlen, rlen = 0;
 	const struct sshcipher *c;
 
@@ -131,8 +132,11 @@ cipher_alg_list(char sep, int auth_only)
 		if (ret != NULL)
 			ret[rlen++] = sep;
 		nlen = strlen(c->name);
-		if (reallocn((void **)&ret, 1, rlen + nlen + 2) != 0)
+		if ((tmp = realloc(ret, rlen + nlen + 2)) == NULL) {
+			free(ret);
 			return NULL;
+		}
+		ret = tmp;
 		memcpy(ret + rlen, c->name, nlen + 1);
 		rlen += nlen;
 	}
@@ -453,6 +457,8 @@ cipher_get_length(struct sshcipher_ctx *cc, u_int *plenp, u_int seqnr,
 int
 cipher_cleanup(struct sshcipher_ctx *cc)
 {
+	if (cc == NULL || cc->cipher == NULL)
+		return 0;
 	if ((cc->cipher->flags & CFLAG_CHACHAPOLY) != 0)
 		explicit_bzero(&cc->cp_ctx, sizeof(cc->cp_ctx));
 	else if ((cc->cipher->flags & CFLAG_AESCTR) != 0)
@@ -495,14 +501,16 @@ int
 cipher_get_keyiv_len(const struct sshcipher_ctx *cc)
 {
 	const struct sshcipher *c = cc->cipher;
-	int ivlen;
+	int ivlen = 0;
 
 	if (c->number == SSH_CIPHER_3DES)
 		ivlen = 24;
 	else if ((cc->cipher->flags & CFLAG_CHACHAPOLY) != 0)
 		ivlen = 0;
+#ifdef WITH_OPENSSL
 	else
 		ivlen = EVP_CIPHER_CTX_iv_length(&cc->evp);
+#endif /* WITH_OPENSSL */
 	return (ivlen);
 }
 

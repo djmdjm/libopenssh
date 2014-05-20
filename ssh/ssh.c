@@ -77,7 +77,7 @@
 #include "packet.h"
 #include "sshbuf.h"
 #include "channels.h"
-#include "key.h"
+#include "sshkey.h"
 #include "authfd.h"
 #include "authfile.h"
 #include "pathnames.h"
@@ -95,7 +95,7 @@
 #include "uidswap.h"
 #include "roaming.h"
 #include "version.h"
-#include "err.h"
+#include "ssherr.h"
 
 #ifdef ENABLE_PKCS11
 #include "ssh-pkcs11.h"

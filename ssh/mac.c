@@ -31,10 +31,10 @@
 #include <signal.h>
 
 #include "cipher.h"
-#include "key.h"
+#include "sshkey.h"
 #include "mac.h"
 #include "misc.h"
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 
 #include "umac.h"

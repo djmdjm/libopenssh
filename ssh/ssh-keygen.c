@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 #include "xmalloc.h"
-#include "key.h"
+#include "sshkey.h"
 #include "rsa.h"
 #include "authfile.h"
 #include "uuencode.h"
@@ -42,7 +42,7 @@
 #include "dns.h"
 #include "ssh.h"
 #include "ssh2.h"
-#include "err.h"
+#include "ssherr.h"
 #include "atomicio.h"
 #include "krl.h"
 
@@ -750,8 +750,8 @@ do_download(struct passwd *pw)
 #ifdef ENABLE_PKCS11
 	struct sshkey **keys = NULL;
 	int i, nkeys;
-	enum fp_rep rep;
-	enum fp_type fptype;
+	enum sshkey_fp_rep rep;
+	enum sshkey_fp_type fptype;
 	char *fp, *ra;
 
 	fptype = print_bubblebabble ? SSH_FP_SHA1 : SSH_FP_MD5;

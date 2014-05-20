@@ -44,7 +44,7 @@
 #include "log.h"
 #include "sshbuf.h"
 #include "servconf.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #include "auth-options.h"
@@ -57,7 +57,7 @@
 #endif
 #include "authfile.h"
 #include "monitor_wrap.h"
-#include "err.h"
+#include "ssherr.h"
 #include "krl.h"
 #include "compat.h"
 

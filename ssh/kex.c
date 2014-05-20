@@ -36,7 +36,7 @@
 #include "packet.h"
 #include "compat.h"
 #include "cipher.h"
-#include "key.h"
+#include "sshkey.h"
 #include "kex.h"
 #include "log.h"
 #include "mac.h"
@@ -45,7 +45,7 @@
 #include "dispatch.h"
 #include "monitor.h"
 #include "roaming.h"
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 
 /* prototype */

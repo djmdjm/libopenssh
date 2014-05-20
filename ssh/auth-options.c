@@ -21,7 +21,7 @@
 
 #include "xmalloc.h"
 #include "match.h"
-#include "err.h"
+#include "ssherr.h"
 #include "log.h"
 #include "canohost.h"
 #include "packet.h"
@@ -29,7 +29,7 @@
 #include "channels.h"
 #include "servconf.h"
 #include "misc.h"
-#include "key.h"
+#include "sshkey.h"
 #include "auth-options.h"
 #include "hostfile.h"
 #include "auth.h"

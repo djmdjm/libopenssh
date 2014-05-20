@@ -29,9 +29,9 @@
 #include <stdarg.h>
 
 #include "packet.h"
-#include "err.h"
+#include "ssherr.h"
 #include "log.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #ifdef GSSAPI

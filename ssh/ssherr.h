@@ -15,8 +15,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef _SSH_ERR_ERR_H
-#define _SSH_ERR_ERR_H
+#ifndef _SSHERR_H
+#define _SSHERR_H
 
 /* XXX are these too granular? not granular enough? I can't decide - djm */
 
@@ -77,4 +77,4 @@
 /* Translate a numeric error code to a human-readable error string */
 const char *ssh_err(int n);
 
-#endif /* _SSH_ERR_ERR_H */
+#endif /* _SSHERR_H */

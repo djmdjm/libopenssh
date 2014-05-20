@@ -31,7 +31,7 @@
 #include "ssh1.h"
 #include "rsa.h"
 #include "packet.h"
-#include "key.h"
+#include "sshkey.h"
 #include "cipher.h"
 #include "kex.h"
 #include "uidswap.h"
@@ -44,7 +44,7 @@
 #include "canohost.h"
 #include "hostfile.h"
 #include "auth.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* Session id for the current session. */
 u_char session_id[16];

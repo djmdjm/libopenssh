@@ -47,7 +47,7 @@
 #include "packet.h"
 #include "compat.h"
 #include "cipher.h"
-#include "key.h"
+#include "sshkey.h"
 #include "kex.h"
 #include "myproposal.h"
 #include "sshconnect.h"
@@ -67,7 +67,7 @@
 #include "schnorr.h"
 #include "jpake.h"
 #include "compat.h"
-#include "err.h"
+#include "ssherr.h"
 
 #ifdef GSSAPI
 #include "ssh-gss.h"

@@ -1,4 +1,4 @@
-/* $OpenBSD: rsa.c,v 1.30 2013/05/17 00:13:14 djm Exp $ */
+/* $OpenBSD: rsa.c,v 1.31 2014/02/02 03:44:31 djm Exp $ */
 /*
  * Author: Tatu Ylonen <ylo@cs.hut.fi>
  * Copyright (c) 1995 Tatu Ylonen <ylo@cs.hut.fi>, Espoo, Finland
@@ -66,7 +66,7 @@
 
 #include "rsa.h"
 #include "log.h"
-#include "err.h"
+#include "ssherr.h"
 
 int
 rsa_public_encrypt(BIGNUM *out, BIGNUM *in, RSA *key)

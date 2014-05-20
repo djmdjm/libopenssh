@@ -26,7 +26,7 @@
 #include <sha1.h>
 #include <sha2.h>
 
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 #include "digest.h"
 

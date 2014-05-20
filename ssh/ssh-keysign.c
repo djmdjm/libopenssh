@@ -38,7 +38,7 @@
 
 #include "xmalloc.h"
 #include "log.h"
-#include "key.h"
+#include "sshkey.h"
 #include "ssh.h"
 #include "ssh2.h"
 #include "misc.h"
@@ -49,7 +49,7 @@
 #include "pathnames.h"
 #include "readconf.h"
 #include "uidswap.h"
-#include "err.h"
+#include "ssherr.h"
 
 /* XXX readconf.c needs these */
 uid_t original_real_uid;

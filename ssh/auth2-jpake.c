@@ -40,7 +40,7 @@
 
 #include "xmalloc.h"
 #include "ssh2.h"
-#include "key.h"
+#include "sshkey.h"
 #include "hostfile.h"
 #include "auth.h"
 #include "sshbuf.h"
@@ -54,7 +54,7 @@
 #include "ssh-gss.h"
 #endif
 #include "monitor_wrap.h"
-#include "err.h"
+#include "ssherr.h"
 
 #include "schnorr.h"
 #include "jpake.h"

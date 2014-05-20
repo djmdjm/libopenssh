@@ -25,7 +25,7 @@
 #include <string.h>
 
 #include "xmalloc.h"
-#include "err.h"
+#include "ssherr.h"
 #include "rsa.h"
 #include "packet.h"
 #include "ssh1.h"
@@ -34,7 +34,7 @@
 #include "pathnames.h"
 #include "log.h"
 #include "servconf.h"
-#include "key.h"
+#include "sshkey.h"
 #include "auth-options.h"
 #include "hostfile.h"
 #include "auth.h"

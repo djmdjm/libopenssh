@@ -65,7 +65,7 @@
 #include "ssh1.h"
 #include "ssh2.h"
 #include "cipher.h"
-#include "key.h"
+#include "sshkey.h"
 #include "kex.h"
 #include "mac.h"
 #include "log.h"
@@ -74,7 +74,7 @@
 #include "ssh.h"
 #include "packet.h"
 #include "roaming.h"
-#include "err.h"
+#include "ssherr.h"
 #include "sshbuf.h"
 
 #ifdef PACKET_DEBUG
